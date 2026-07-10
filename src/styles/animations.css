@@ -1,0 +1,208 @@
+/* ==========================================================================
+   Animations — Personal Photo Hub
+   ==========================================================================
+   所有 @keyframes 定義與對應的工具類別。
+   設計原則：動畫應是「被感受到」而非「被注意到」的，
+   時間曲線偏向 ease-out，持續時間保持克制。
+   ========================================================================== */
+
+/* -----------------------------------------------------------------------
+   1. Keyframes 定義
+   ----------------------------------------------------------------------- */
+
+/* 純淡入 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* 由下方淡入 — 最常用的進場動畫 */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 縮放淡入 — 適用於卡片、圖片容器 */
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* 由底部滑入 — 適用於 Lightbox、底部面板 */
+@keyframes slideInFromBottom {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* Shimmer — 載入佔位元素的左右流光效果 */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* 脈動 — 載入狀態的縮放呼吸效果 */
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.03);
+    opacity: 0.85;
+  }
+}
+
+/* 模糊淡入 — 圖片從模糊到清晰的載入效果 */
+@keyframes blurIn {
+  from {
+    filter: blur(20px);
+    opacity: 0;
+  }
+  to {
+    filter: blur(0);
+    opacity: 1;
+  }
+}
+
+/* -----------------------------------------------------------------------
+   2. 動畫工具類別 (Animation Utilities)
+   -----------------------------------------------------------------------
+   animation-fill-mode: both 確保動畫開始前維持 from 狀態，
+   結束後維持 to 狀態。
+   ----------------------------------------------------------------------- */
+.animate-fade-in {
+  animation: fadeIn var(--duration-normal) var(--ease-out) both;
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp var(--duration-slow) var(--ease-out) both;
+}
+
+.animate-fade-in-scale {
+  animation: fadeInScale var(--duration-slow) var(--ease-out) both;
+}
+
+.animate-slide-in-bottom {
+  animation: slideInFromBottom var(--duration-slow) var(--ease-out) both;
+}
+
+.animate-blur-in {
+  animation: blurIn var(--duration-very-slow) var(--ease-out) both;
+}
+
+/* -----------------------------------------------------------------------
+   3. 載入狀態類別 (Loading States)
+   ----------------------------------------------------------------------- */
+
+/* Shimmer 佔位元素 — 替代傳統 spinner 的載入效果 */
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-alt) 25%,
+    var(--color-bg-pure) 50%,
+    var(--color-bg-alt) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s var(--ease-in-out) infinite;
+}
+
+/* 脈動載入效果 */
+.animate-pulse {
+  animation: pulse 2s var(--ease-in-out) infinite;
+}
+
+/* -----------------------------------------------------------------------
+   4. 交錯延遲工具類別 (Stagger Delay Utilities)
+   -----------------------------------------------------------------------
+   搭配 JavaScript 為多個元素依序套用不同的 delay class，
+   產生自然的交錯進場效果。
+   ----------------------------------------------------------------------- */
+.delay-1 { animation-delay: 100ms; }
+.delay-2 { animation-delay: 200ms; }
+.delay-3 { animation-delay: 300ms; }
+.delay-4 { animation-delay: 400ms; }
+.delay-5 { animation-delay: 500ms; }
+.delay-6 { animation-delay: 600ms; }
+
+/* -----------------------------------------------------------------------
+   5. 照片揭露類別 (Photo Reveal)
+   -----------------------------------------------------------------------
+   與 Intersection Observer API 搭配使用的核心類別。
+   
+   運作機制：
+   1. 元素初始帶有 .photo-reveal class，處於不可見狀態。
+   2. 當 Intersection Observer 偵測到元素進入視口，
+      透過 JavaScript 加上 .is-visible class。
+   3. CSS transition 負責平滑過渡。
+   
+   使用方式（JavaScript 端）：
+   observer.observe(el)
+   => 進入視口時 el.classList.add('is-visible')
+   ----------------------------------------------------------------------- */
+.photo-reveal {
+  opacity: 0;
+  transform: translateY(24px) scale(0.98);
+  transition:
+    opacity var(--duration-very-slow) var(--ease-out),
+    transform var(--duration-very-slow) var(--ease-out);
+  will-change: opacity, transform;
+}
+
+.photo-reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+/* 變體：僅淡入，不位移 */
+.photo-reveal--fade-only {
+  opacity: 0;
+  transition: opacity var(--duration-very-slow) var(--ease-out);
+  will-change: opacity;
+}
+
+.photo-reveal--fade-only.is-visible {
+  opacity: 1;
+}
+
+/* 變體：模糊揭露 — 適用於高品質照片的進場效果 */
+.photo-reveal--blur {
+  opacity: 0;
+  filter: blur(12px);
+  transform: scale(1.02);
+  transition:
+    opacity var(--duration-very-slow) var(--ease-out),
+    filter var(--duration-very-slow) var(--ease-out),
+    transform var(--duration-very-slow) var(--ease-out);
+  will-change: opacity, filter, transform;
+}
+
+.photo-reveal--blur.is-visible {
+  opacity: 1;
+  filter: blur(0);
+  transform: scale(1);
+}

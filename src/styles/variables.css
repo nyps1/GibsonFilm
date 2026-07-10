@@ -1,0 +1,180 @@
+/* ==========================================================================
+   Design Tokens — Personal Photo Hub
+   ========================================================================== 
+   所有設計變數的單一來源（Single Source of Truth）。
+   色彩、間距、字體大小、陰影、動畫時間、z-index 層級等，
+   皆透過 CSS Custom Properties 統一管理，確保全站視覺一致性。
+   ========================================================================== */
+
+:root {
+  /* -----------------------------------------------------------------------
+     色彩系統 (Color System)
+     ----------------------------------------------------------------------- 
+     以純白與淺灰為基底，深炭灰為文字，暖金為唯一強調色。
+     刻意壓縮色彩數量，營造高端藝廊的克制感。
+     ----------------------------------------------------------------------- */
+
+  /* 背景色階 — 由亮至暗 */
+  --color-bg:              #FAFAFA;
+  --color-bg-alt:          #F5F5F5;
+  --color-bg-pure:         #FFFFFF;
+
+  /* 文字色階 — 由深至淺 */
+  --color-text:            #1A1A1A;
+  --color-text-secondary:  #2C2C2C;
+  --color-text-tertiary:   #666666;
+
+  /* 強調色 */
+  --color-accent:          #C4A882;
+  --color-accent-hover:    #B89B74;
+  --color-accent-light:    rgba(196, 168, 130, 0.12);
+
+  /* 邊線 */
+  --color-border:          #E8E8E8;
+  --color-border-strong:   #D4D4D4;
+
+  /* 功能色 — 僅用於互動回饋 */
+  --color-overlay:         rgba(0, 0, 0, 0.72);
+  --color-overlay-light:   rgba(0, 0, 0, 0.48);
+
+  /* -----------------------------------------------------------------------
+     間距系統 (Spacing Scale)
+     ----------------------------------------------------------------------- 
+     以 4px 為基底的等比間距，涵蓋 4px 至 64px。
+     命名採 1-16 序號，數值 = 序號 x 4px。
+     ----------------------------------------------------------------------- */
+  --space-1:   4px;    /*  4px */
+  --space-2:   8px;    /*  8px */
+  --space-3:   12px;   /* 12px */
+  --space-4:   16px;   /* 16px */
+  --space-5:   20px;   /* 20px */
+  --space-6:   24px;   /* 24px */
+  --space-7:   28px;   /* 28px */
+  --space-8:   32px;   /* 32px */
+  --space-9:   36px;   /* 36px */
+  --space-10:  40px;   /* 40px */
+  --space-11:  44px;   /* 44px */
+  --space-12:  48px;   /* 48px */
+  --space-13:  52px;   /* 52px */
+  --space-14:  56px;   /* 56px */
+  --space-15:  60px;   /* 60px */
+  --space-16:  64px;   /* 64px */
+
+  /* -----------------------------------------------------------------------
+     字型系統 (Typography)
+     ----------------------------------------------------------------------- 
+     font-family 定義於此，實際 @font-face / @import 由 typography.css 處理。
+     Playfair Display 用於標題，Inter 用於內文。
+     ----------------------------------------------------------------------- */
+  --font-serif: 'Playfair Display', 'Georgia', 'Times New Roman', serif;
+  --font-sans:  'Inter', 'Helvetica Neue', 'Arial', sans-serif;
+
+  /* 字體大小 — Modular Scale（大約 1.25 比率） */
+  --text-xs:    0.75rem;   /* 12px */
+  --text-sm:    0.875rem;  /* 14px */
+  --text-base:  1rem;      /* 16px */
+  --text-md:    1.125rem;  /* 18px */
+  --text-lg:    1.25rem;   /* 20px */
+  --text-xl:    1.5rem;    /* 24px */
+  --text-2xl:   1.875rem;  /* 30px */
+  --text-3xl:   2.25rem;   /* 36px */
+  --text-4xl:   3rem;      /* 48px */
+  --text-5xl:   4rem;      /* 64px */
+
+  /* 字重 */
+  --font-light:     300;
+  --font-regular:   400;
+  --font-medium:    500;
+  --font-semibold:  600;
+  --font-bold:      700;
+
+  /* 行高 */
+  --leading-tight:   1.2;
+  --leading-snug:    1.4;
+  --leading-normal:  1.6;
+  --leading-relaxed: 1.8;
+
+  /* 字距 */
+  --tracking-tight:   -0.02em;
+  --tracking-normal:   0em;
+  --tracking-wide:     0.04em;
+  --tracking-wider:    0.08em;
+  --tracking-widest:   0.16em;
+
+  /* -----------------------------------------------------------------------
+     圓角 (Border Radius)
+     ----------------------------------------------------------------------- */
+  --radius-xs:   2px;
+  --radius-sm:   4px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-full: 9999px;
+
+  /* -----------------------------------------------------------------------
+     過渡動畫 (Transitions)
+     ----------------------------------------------------------------------- */
+  --duration-fast:      150ms;
+  --duration-normal:    300ms;
+  --duration-slow:      500ms;
+  --duration-very-slow: 800ms;
+
+  --ease-default: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --ease-in-out:  cubic-bezier(0.42, 0, 0.58, 1);
+  --ease-out:     cubic-bezier(0, 0, 0.2, 1);
+
+  --transition-fast:      var(--duration-fast) var(--ease-default);
+  --transition-normal:    var(--duration-normal) var(--ease-default);
+  --transition-slow:      var(--duration-slow) var(--ease-default);
+  --transition-very-slow: var(--duration-very-slow) var(--ease-out);
+
+  /* -----------------------------------------------------------------------
+     陰影 (Shadows)
+     -----------------------------------------------------------------------
+     極度柔和的陰影，僅在元素需要層次感時使用。
+     spread 刻意壓低、透明度極低，符合極簡藝廊美學。
+     ----------------------------------------------------------------------- */
+  --shadow-subtle:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 1px 3px rgba(0, 0, 0, 0.02);
+
+  --shadow-medium:
+    0 2px 8px rgba(0, 0, 0, 0.06),
+    0 1px 4px rgba(0, 0, 0, 0.03);
+
+  --shadow-large:
+    0 8px 24px rgba(0, 0, 0, 0.08),
+    0 2px 8px rgba(0, 0, 0, 0.04);
+
+  /* -----------------------------------------------------------------------
+     Z-Index 層級 (Z-Index Layers)
+     -----------------------------------------------------------------------
+     固定的層級表，避免隨意指定 z-index 導致堆疊混亂。
+     ----------------------------------------------------------------------- */
+  --z-base:      1;
+  --z-sticky:    100;
+  --z-dropdown:  200;
+  --z-overlay:   300;
+  --z-lightbox:  400;
+  --z-toast:     500;
+
+  /* -----------------------------------------------------------------------
+     容器寬度 (Container Widths)
+     ----------------------------------------------------------------------- */
+  --container-sm:  640px;
+  --container-md:  768px;
+  --container-lg:  1024px;
+  --container-xl:  1280px;
+  --container-2xl: 1536px;
+
+  /* -----------------------------------------------------------------------
+     斷點參考 (Breakpoints Reference)
+     -----------------------------------------------------------------------
+     CSS Custom Properties 無法直接用於 @media query，
+     此處僅作為統一文件化的參考值，實際 media query 仍需寫入數值。
+     ----------------------------------------------------------------------- */
+  --bp-sm:  640px;
+  --bp-md:  768px;
+  --bp-lg:  1024px;
+  --bp-xl:  1280px;
+  --bp-2xl: 1536px;
+}

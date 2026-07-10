@@ -1,0 +1,181 @@
+/* ==========================================================================
+   Typography — Personal Photo Hub
+   ==========================================================================
+   字型載入與排版系統。
+   標題使用 Playfair Display（襯線體），傳遞經典藝廊質感；
+   內文使用 Inter（無襯線體），確保螢幕閱讀的清晰度。
+   ========================================================================== */
+
+/* -----------------------------------------------------------------------
+   1. Google Fonts 載入
+   -----------------------------------------------------------------------
+   Inter:              300 (Light), 400 (Regular), 500 (Medium), 600 (SemiBold)
+   Playfair Display:   400 (Regular), 500 (Medium), 600 (SemiBold),
+                        700 (Bold), 400i (Italic)
+   ----------------------------------------------------------------------- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+
+/* -----------------------------------------------------------------------
+   2. 標題系統 (Headings)
+   -----------------------------------------------------------------------
+   h1-h6 統一使用 Playfair Display，搭配略微加寬的字距，
+   營造開闊、從容的視覺節奏。
+   ----------------------------------------------------------------------- */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-serif);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-text);
+}
+
+h1 {
+  font-size: var(--text-5xl);
+  font-weight: var(--font-bold);
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.1;
+}
+
+h2 {
+  font-size: var(--text-4xl);
+  font-weight: var(--font-bold);
+  letter-spacing: var(--tracking-normal);
+}
+
+h3 {
+  font-size: var(--text-3xl);
+  font-weight: var(--font-semibold);
+}
+
+h4 {
+  font-size: var(--text-2xl);
+  font-weight: var(--font-semibold);
+}
+
+h5 {
+  font-size: var(--text-xl);
+  font-weight: var(--font-medium);
+}
+
+h6 {
+  font-size: var(--text-lg);
+  font-weight: var(--font-medium);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+}
+
+/* -----------------------------------------------------------------------
+   3. 段落與內文 (Body Text)
+   ----------------------------------------------------------------------- */
+p {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  font-weight: var(--font-regular);
+  line-height: var(--leading-normal);
+  color: var(--color-text-secondary);
+}
+
+/* 較大的引言或導言段落 */
+.text-lead {
+  font-size: var(--text-lg);
+  line-height: var(--leading-relaxed);
+  color: var(--color-text-tertiary);
+  font-weight: var(--font-light);
+}
+
+/* -----------------------------------------------------------------------
+   4. 小型文字與輔助標記 (Small / Caption)
+   ----------------------------------------------------------------------- */
+small,
+.text-sm {
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+.text-xs {
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  letter-spacing: var(--tracking-wide);
+}
+
+.text-caption {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+/* -----------------------------------------------------------------------
+   5. 字型工具類別 (Font Family Utilities)
+   ----------------------------------------------------------------------- */
+
+/* 強制使用襯線體 — 用於需要標題風格的非標題元素 */
+.text-serif {
+  font-family: var(--font-serif);
+}
+
+/* 強制使用無襯線體 — 用於需要內文風格的非段落元素 */
+.text-sans {
+  font-family: var(--font-sans);
+}
+
+/* -----------------------------------------------------------------------
+   6. 文字粗細工具類別 (Font Weight Utilities)
+   ----------------------------------------------------------------------- */
+.font-light     { font-weight: var(--font-light); }
+.font-regular   { font-weight: var(--font-regular); }
+.font-medium    { font-weight: var(--font-medium); }
+.font-semibold  { font-weight: var(--font-semibold); }
+.font-bold      { font-weight: var(--font-bold); }
+
+/* -----------------------------------------------------------------------
+   7. 文字色彩工具類別 (Text Color Utilities)
+   ----------------------------------------------------------------------- */
+.text-primary    { color: var(--color-text); }
+.text-secondary  { color: var(--color-text-secondary); }
+.text-tertiary   { color: var(--color-text-tertiary); }
+.text-accent     { color: var(--color-accent); }
+
+/* -----------------------------------------------------------------------
+   8. 引用區塊 (Blockquote)
+   ----------------------------------------------------------------------- */
+blockquote {
+  font-family: var(--font-serif);
+  font-size: var(--text-xl);
+  font-style: italic;
+  font-weight: var(--font-regular);
+  line-height: var(--leading-snug);
+  color: var(--color-text-secondary);
+  padding-left: var(--space-6);
+  border-left: 2px solid var(--color-accent);
+}
+
+/* -----------------------------------------------------------------------
+   9. 響應式標題縮放 (Responsive Heading Scale)
+   -----------------------------------------------------------------------
+   在小螢幕上適度縮小標題尺寸，避免過度擁擠。
+   ----------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  h1 {
+    font-size: var(--text-3xl);
+  }
+
+  h2 {
+    font-size: var(--text-2xl);
+  }
+
+  h3 {
+    font-size: var(--text-xl);
+  }
+
+  h4 {
+    font-size: var(--text-lg);
+  }
+}
