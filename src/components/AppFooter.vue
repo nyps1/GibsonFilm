@@ -42,15 +42,51 @@
         </a>
       </nav>
     </div>
+
+    <!-- Hidden Admin Trigger (User Avatar) -->
+    <img 
+      src="/images/admin-trigger.png" 
+      alt="" 
+      class="app-footer__admin-trigger"
+      @pointerdown="startPress"
+      @pointerup="cancelPress"
+      @pointerleave="cancelPress"
+      @contextmenu.prevent
+    />
+
+    <AdminUploadModal :isOpen="isAdminOpen" @close="isAdminOpen = false" />
   </footer>
 </template>
 
 <script setup>
+import { ref } from 'vue'
+import AdminUploadModal from '@/components/AdminUploadModal.vue'
+
 const currentYear = new Date().getFullYear()
+
+const isAdminOpen = ref(false)
+let pressTimer = null
+
+const startPress = (e) => {
+  // 僅限左鍵點擊或觸控
+  if (e.pointerType === 'mouse' && e.button !== 0) return
+  
+  pressTimer = setTimeout(() => {
+    isAdminOpen.value = true
+  }, 5000)
+}
+
+const cancelPress = () => {
+  if (pressTimer) {
+    clearTimeout(pressTimer)
+    pressTimer = null
+  }
+}
 </script>
 
 <style scoped>
 .app-footer {
+  position: relative;
   width: 100%;
   border-top: 1px solid var(--color-border, #E8E8E8);
   background-color: var(--color-bg, #FAFAFA);
@@ -102,6 +138,26 @@ const currentYear = new Date().getFullYear()
 .app-footer__social-link:focus-visible {
   outline: 2px solid var(--color-accent, #C4A882);
   outline-offset: 2px;
+}
+
+/* 隱藏式 Admin 觸發器 */
+.app-footer__admin-trigger {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  width: 20px;
+  height: auto;
+  border-radius: 4px;
+  opacity: 0.5;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-drag: none;
+  transition: opacity var(--transition-slow, 500ms) ease;
+}
+
+/* 稍微 Hover 提示它是互動元素 */
+.app-footer__admin-trigger:hover {
+  opacity: 1;
 }
 
 @media (max-width: 768px) {

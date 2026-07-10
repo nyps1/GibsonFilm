@@ -1,69 +1,218 @@
 <template>
-  <section
-    ref="heroRef"
-    class="hero-section"
-    :style="{ '--parallax-offset': `${parallaxOffset}px` }"
-  >
-    <div class="hero-section__bg" aria-hidden="true">
-      <img
-        v-if="featuredPhoto"
-        :src="featuredPhoto.src"
-        :alt="featuredPhoto.title || 'Featured photograph'"
-        class="hero-section__image"
-        @load="onImageLoad"
-      />
-      <div class="hero-section__image-placeholder" :class="{ 'is-hidden': imageLoaded }"></div>
-    </div>
+  <section ref="containerRef" class="scroll-container">
+    <div class="sticky-viewport" @mousemove="onMouseMove" @mouseleave="onMouseLeave">
+      
+      <!-- 導航列：相機切換器 (向下捲動時淡出) -->
+      <nav class="camera-selector" :style="{ opacity: navOpacity, pointerEvents: navOpacity > 0 ? 'auto' : 'none' }">
+        <ul class="camera-list">
+          <li v-for="camera in cameras" :key="camera.id">
+            <button
+              class="camera-btn"
+              :class="{ 'is-active': activeCamera.id === camera.id }"
+              @click="selectCamera(camera)"
+            >
+              {{ camera.name }}
+            </button>
+          </li>
+        </ul>
+        <div class="scroll-hint">
+          <span class="scroll-hint-text">Scroll Down</span>
+          <span class="chevron"></span>
+        </div>
+      </nav>
 
-    <div class="hero-section__overlay" aria-hidden="true"></div>
+      <!-- Stage 4: 觀景窗內的精選照片 (依序浮現) -->
+      <div class="curated-photos-layer">
+        <div class="photo-wrapper" :style="{ opacity: photo1Opacity, transform: `scale(${1 + (1 - photo1Opacity) * 0.05})` }">
+          <img :src="revealPhotos[0]" alt="Curated 1" class="curated-img" />
+        </div>
+        <div class="photo-wrapper" :style="{ opacity: photo2Opacity, transform: `scale(${1 + (1 - photo2Opacity) * 0.05})` }">
+          <img :src="revealPhotos[1]" alt="Curated 2" class="curated-img" />
+        </div>
+        <div class="photo-wrapper" :style="{ opacity: photo3Opacity, transform: `scale(${1 + (1 - photo3Opacity) * 0.05})` }">
+          <img :src="revealPhotos[2]" alt="Curated 3" class="curated-img" />
+        </div>
+        
+        <!-- 當照片全出後，顯示進入畫廊的提示文字 -->
+        <div class="release-hint" :style="{ opacity: photo3Opacity }">
+          <h2 class="release-title">Personal Photo Hub</h2>
+          <p class="release-subtitle">Capturing Moments in Film</p>
+        </div>
+      </div>
 
-    <div class="hero-section__content">
-      <h1 class="hero-section__title">Personal Photo Hub</h1>
-      <p class="hero-section__tagline">Capturing Moments in Film</p>
-    </div>
+      <!-- Stage 1 & 2: 前景層 相機本體 -->
+      <div 
+        class="camera-layer" 
+        :style="{ 
+          opacity: cameraOpacity,
+          transform: `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(${cameraScale})`,
+          transformOrigin: activeCamera.viewfinderOrigin 
+        }"
+      >
+        <Transition name="fade-fast" mode="out-in">
+          <img :key="activeCamera.id" :src="activeCamera.image" :alt="activeCamera.name" class="camera-img" draggable="false" />
+        </Transition>
+      </div>
 
-    <div class="hero-section__scroll-indicator" aria-hidden="true">
-      <span class="hero-section__chevron"></span>
+      <!-- Stage 3: 快門閃光特效 -->
+      <div class="shutter-flash-layer" :style="{ opacity: flashOpacity }"></div>
+      
     </div>
   </section>
 </template>
 
 <script setup>
+/**
+ * Cinematic Hero Sequence
+ * 
+ * 使用 400vh 容器與 sticky viewport 實現滾動動畫：
+ * 1. 3D Hover Parallax
+ * 2. 鏡頭/觀景窗放大 (Zoom in)
+ * 3. 快門閃光 (Shutter Flash)
+ * 4. 照片依序浮現 (Sequential Reveal)
+ */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useGalleryStore } from '@/stores/gallery'
 
-const galleryStore = useGalleryStore()
+const containerRef = ref(null)
+const scrollProgress = ref(0)
+const mouseX = ref(0)
+const mouseY = ref(0)
 
-const heroRef = ref(null)
-const parallaxOffset = ref(0)
-const imageLoaded = ref(false)
+const cameras = [
+  {
+    id: 'canon-a1',
+    name: 'Canon A-1',
+    image: '/images/cameras/canon-a1.png',
+    // 將鏡頭中心設定為放大基準點
+    viewfinderOrigin: '50% 50%' 
+  },
+  {
+    id: 'genba-kantoku',
+    name: '現場監督 28WB',
+    image: '/images/cameras/genba-kantoku.png',
+    viewfinderOrigin: '60% 45%'
+  },
+  {
+    id: 'fuji-s700',
+    name: 'Fujifilm S700',
+    image: '/images/cameras/fuji-s700.png',
+    viewfinderOrigin: '52% 48%'
+  }
+]
 
-const featuredPhoto = computed(() => {
-  return galleryStore.heroPhoto || null
+const activeCamera = ref(cameras[0])
+
+const revealPhotos = [
+  '/images/gallery/photo-01.png', // Yushan
+  '/images/gallery/photo-04.png', // Alishan
+  '/images/gallery/photo-06.png'  // Taroko
+]
+
+const selectCamera = (camera) => {
+  activeCamera.value = camera
+}
+
+// === 滾動進度計算 ===
+let ticking = false
+const handleScroll = () => {
+  if (!ticking && containerRef.value) {
+    window.requestAnimationFrame(() => {
+      const rect = containerRef.value.getBoundingClientRect()
+      // rect.top 是距離視窗頂部的高度，起始點為 0，當捲動到最底時為 -(rect.height - window.innerHeight)
+      const maxScroll = rect.height - window.innerHeight
+      const currentScroll = -rect.top
+      
+      // 限制 progress 在 0 到 1 之間
+      let progress = currentScroll / maxScroll
+      progress = Math.max(0, Math.min(1, progress))
+      scrollProgress.value = progress
+      
+      ticking = false
+    })
+    ticking = true
+  }
+}
+
+// === 滑鼠 3D 視差運算 ===
+const onMouseMove = (e) => {
+  // 將滑鼠座標映射為 -1 到 1 的區間
+  const x = (e.clientX / window.innerWidth) * 2 - 1
+  const y = (e.clientY / window.innerHeight) * 2 - 1
+  mouseX.value = x
+  mouseY.value = y
+}
+
+const onMouseLeave = () => {
+  mouseX.value = 0
+  mouseY.value = 0
+}
+
+// === 動畫數值映射 (Mapping Functions) ===
+
+// 隱藏導航列 (0% ~ 5% 捲動時)
+const navOpacity = computed(() => {
+  return Math.max(0, 1 - (scrollProgress.value * 20))
 })
 
-const onImageLoad = () => {
-  imageLoaded.value = true
-}
+// 視差旋轉角度：當開始往下捲動放大時，逐漸歸零以確保放大視角平正
+const rotationMultiplier = computed(() => {
+  if (scrollProgress.value > 0.1) return 0
+  return 1 - (scrollProgress.value / 0.1)
+})
+const rotateX = computed(() => -(mouseY.value * 12) * rotationMultiplier.value)
+const rotateY = computed(() => (mouseX.value * 12) * rotationMultiplier.value)
 
-let ticking = false
+// Stage 2: 相機放大 (0% ~ 60%)
+const cameraScale = computed(() => {
+  if (scrollProgress.value <= 0) return 1
+  if (scrollProgress.value >= 0.6) return 40 // 極大化，足以填滿螢幕
+  // 使用指數增長以產生加速度的衝刺感 (Zoom effect)
+  const p = scrollProgress.value / 0.6
+  return 1 + Math.pow(p, 4) * 39 
+})
 
-const handleScroll = () => {
-  if (ticking) return
-  ticking = true
+// Stage 3: 快門閃光 (55% ~ 65%)，在 60% 達到最亮
+const flashOpacity = computed(() => {
+  const p = scrollProgress.value
+  if (p < 0.55 || p > 0.65) return 0
+  if (p <= 0.6) {
+    return (p - 0.55) / 0.05 // Fade in
+  } else {
+    return 1 - ((p - 0.6) / 0.05) // Fade out
+  }
+})
 
-  requestAnimationFrame(() => {
-    const scrollY = window.scrollY
-    const heroHeight = heroRef.value?.offsetHeight || window.innerHeight
-    if (scrollY <= heroHeight) {
-      parallaxOffset.value = scrollY * 0.35
-    }
-    ticking = false
-  })
-}
+// 快門閃光後，隱藏相機本體
+const cameraOpacity = computed(() => {
+  return scrollProgress.value >= 0.6 ? 0 : 1
+})
+
+// Stage 4: 照片依序浮現 (65% ~ 90%)
+const photo1Opacity = computed(() => {
+  const p = scrollProgress.value
+  if (p < 0.65) return 0
+  if (p > 0.73) return 1
+  return (p - 0.65) / 0.08
+})
+
+const photo2Opacity = computed(() => {
+  const p = scrollProgress.value
+  if (p < 0.73) return 0
+  if (p > 0.81) return 1
+  return (p - 0.73) / 0.08
+})
+
+const photo3Opacity = computed(() => {
+  const p = scrollProgress.value
+  if (p < 0.81) return 0
+  if (p > 0.89) return 1
+  return (p - 0.81) / 0.08
+})
 
 onMounted(() => {
   window.addEventListener('scroll', handleScroll, { passive: true })
+  // 初始化計算一次
+  handleScroll()
 })
 
 onUnmounted(() => {
@@ -72,150 +221,232 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.hero-section {
+.scroll-container {
+  /* 提供足夠的滾動空間 (400vh) */
+  height: 400vh;
   position: relative;
+  background-color: var(--color-bg, #FAFAFA);
+}
+
+.sticky-viewport {
+  position: sticky;
+  top: 0;
   width: 100%;
   height: 100vh;
-  min-height: 600px;
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-bg, #FAFAFA);
+}
+
+/* --- 導航列 --- */
+.camera-selector {
+  position: absolute;
+  top: max(40px, 8vh);
+  left: 0;
+  width: 100%;
+  z-index: 10;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  color: #FFFFFF;
+  gap: var(--space-8, 32px);
+  will-change: opacity;
 }
 
-.hero-section__bg {
+.camera-list {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8, 32px);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.camera-btn {
+  background: transparent;
+  border: none;
+  padding: 8px 0;
+  font-family: var(--font-sans, 'Inter'), sans-serif;
+  font-size: var(--text-sm, 0.875rem);
+  font-weight: 500;
+  color: var(--color-text-tertiary, #666666);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  position: relative;
+  transition: color var(--transition-normal, 300ms) ease;
+}
+
+.camera-btn::after {
+  content: '';
   position: absolute;
-  inset: 0;
-  z-index: 0;
-  will-change: transform;
-  transform: translateY(var(--parallax-offset, 0));
+  bottom: 0;
+  left: 50%;
+  width: 0;
+  height: 2px;
+  background-color: var(--color-accent, #C4A882);
+  transform: translateX(-50%);
+  transition: width var(--transition-normal, 300ms) ease;
 }
 
-.hero-section__image {
-  display: block;
+.camera-btn:hover, .camera-btn.is-active {
+  color: var(--color-text, #1A1A1A);
+}
+
+.camera-btn.is-active::after {
   width: 100%;
-  height: calc(100% + 140px);
-  object-fit: cover;
-  object-position: center 40%;
-  opacity: 1;
-  transition: opacity var(--transition-slow, 500ms) ease;
 }
 
-.hero-section__image-placeholder {
+.scroll-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  opacity: 0.5;
+}
+
+.scroll-hint-text {
+  font-family: var(--font-sans, 'Inter'), sans-serif;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+}
+
+.chevron {
+  width: 16px;
+  height: 16px;
+  border-right: 1.5px solid var(--color-text, #1A1A1A);
+  border-bottom: 1.5px solid var(--color-text, #1A1A1A);
+  transform: rotate(45deg);
+  animation: float 2s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: rotate(45deg) translate(-2px, -2px); }
+  50% { transform: rotate(45deg) translate(2px, 2px); }
+}
+
+/* --- 前景層：相機本體 --- */
+.camera-layer {
+  position: absolute;
+  z-index: 2;
+  width: 100%;
+  max-width: 700px;
+  aspect-ratio: 4/3;
+  will-change: transform, opacity;
+  /* 平滑的滑鼠視差跟隨與交叉淡入 */
+  transition: opacity 100ms linear;
+}
+
+.camera-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 20px 40px rgba(0,0,0,0.15));
+}
+
+.fade-fast-enter-active,
+.fade-fast-leave-active {
+  transition: opacity 250ms ease;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+.fade-fast-enter-from,
+.fade-fast-leave-to {
+  opacity: 0;
+}
+
+/* --- 閃光層 --- */
+.shutter-flash-layer {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    135deg,
-    var(--color-text, #1A1A1A) 0%,
-    #2a2a2a 50%,
-    var(--color-text, #1A1A1A) 100%
-  );
-  background-size: 200% 200%;
-  animation: shimmer-hero 2s ease-in-out infinite;
-  transition: opacity var(--transition-slow, 500ms) ease;
-}
-
-.hero-section__image-placeholder.is-hidden {
-  opacity: 0;
+  z-index: 3;
+  background-color: #FFFFFF;
   pointer-events: none;
+  will-change: opacity;
 }
 
-@keyframes shimmer-hero {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-
-.hero-section__overlay {
+/* --- 背景層：精選照片 --- */
+.curated-photos-layer {
   position: absolute;
   inset: 0;
   z-index: 1;
-  background: linear-gradient(
-    to top,
-    rgba(0, 0, 0, 0.65) 0%,
-    rgba(0, 0, 0, 0.25) 40%,
-    rgba(0, 0, 0, 0.08) 70%,
-    transparent 100%
-  );
-  pointer-events: none;
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  grid-template-rows: repeat(12, 1fr);
+  background-color: var(--color-text, #1A1A1A); /* 深色背景襯托照片 */
+  overflow: hidden;
 }
 
-.hero-section__content {
-  position: relative;
-  z-index: 2;
-  text-align: center;
-  padding: 0 24px;
-  max-width: 800px;
-}
-
-.hero-section__title {
-  font-family: var(--font-serif, 'Playfair Display'), serif;
-  font-size: clamp(2.5rem, 6vw, 4.5rem);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
-  margin: 0 0 16px;
-  color: #FFFFFF;
-  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
-}
-
-.hero-section__tagline {
-  font-family: var(--font-sans, 'Inter'), sans-serif;
-  font-size: clamp(1rem, 2vw, 1.25rem);
-  font-weight: 300;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  margin: 0;
-  color: rgba(255, 255, 255, 0.85);
-  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.2);
-}
-
-.hero-section__scroll-indicator {
+.photo-wrapper {
   position: absolute;
-  bottom: 40px;
+  will-change: transform, opacity;
+  box-shadow: 0 30px 60px rgba(0,0,0,0.4);
+  border-radius: var(--radius-sm, 4px);
+  overflow: hidden;
+}
+
+.curated-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 三張照片的位置排版 (不規則散落感) */
+.photo-wrapper:nth-child(1) {
+  grid-column: 2 / 7;
+  grid-row: 2 / 8;
+  z-index: 1;
+}
+
+.photo-wrapper:nth-child(2) {
+  grid-column: 7 / 12;
+  grid-row: 3 / 10;
+  z-index: 2;
+}
+
+.photo-wrapper:nth-child(3) {
+  grid-column: 4 / 9;
+  grid-row: 6 / 12;
+  z-index: 3;
+}
+
+/* 進入畫廊的提示文字 */
+.release-hint {
+  position: absolute;
+  bottom: 10%;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  animation: float-indicator 2.4s ease-in-out infinite;
+  z-index: 4;
+  text-align: center;
+  color: #FFFFFF;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+  will-change: opacity;
 }
 
-.hero-section__chevron {
-  display: block;
-  width: 28px;
-  height: 28px;
-  border-right: 1.5px solid rgba(255, 255, 255, 0.7);
-  border-bottom: 1.5px solid rgba(255, 255, 255, 0.7);
-  transform: rotate(45deg);
+.release-title {
+  font-family: var(--font-serif, 'Playfair Display'), serif;
+  font-size: 2.5rem;
+  margin: 0 0 8px;
 }
 
-@keyframes float-indicator {
-  0%, 100% {
-    opacity: 0.6;
-    transform: translateX(-50%) translateY(0);
-  }
-  50% {
-    opacity: 1;
-    transform: translateX(-50%) translateY(10px);
-  }
+.release-subtitle {
+  font-family: var(--font-sans, 'Inter'), sans-serif;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-size: 0.875rem;
+  margin: 0;
 }
 
 @media (max-width: 768px) {
-  .hero-section {
-    min-height: 500px;
+  .camera-layer {
+    max-width: 90vw;
   }
-
-  .hero-section__scroll-indicator {
-    bottom: 24px;
-  }
-
-  .hero-section__chevron {
-    width: 22px;
-    height: 22px;
-  }
+  .photo-wrapper:nth-child(1) { grid-column: 1 / 11; grid-row: 1 / 6; }
+  .photo-wrapper:nth-child(2) { grid-column: 3 / 13; grid-row: 4 / 9; }
+  .photo-wrapper:nth-child(3) { grid-column: 2 / 12; grid-row: 7 / 12; }
 }
 </style>

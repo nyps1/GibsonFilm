@@ -80,6 +80,18 @@ The gallery is managed via a static JSON file. To add new photos:
    ```
 5. **Deploy:** `git push` to your main branch. Cloudflare Pages will automatically rebuild and deploy within seconds.
 
+## 🎬 Updating Cinematic Hero Assets
+
+The homepage features an 800vh cinematic scroll sequence (`HeroScrollSequence.vue`). To update the assets used in this sequence, replace the files in the following paths with your own high-quality images:
+
+1. **Camera Assets (public/images/cameras/)**
+   - `canon-a1.png`: Replace this with your transparent background image of the camera's front view.
+   - `camera-viewfinder-placeholder.png`: Replace this with the transparent background image of the camera's rear viewfinder. Ensure the viewfinder opening is appropriately centered or adjust the `transform-origin` in the code.
+   
+2. **Curated Fullscreen Photos (public/images/gallery/)**
+   - The sequence currently uses `photo-01.png`, `photo-04.png`, and `photo-06.png` as the three sequential fade-in showcase images.
+   - You can overwrite these files or change the referenced filenames directly in `src/components/HeroScrollSequence.vue`.
+
 ## 🗺️ Roadmap (Phase 2)
 
 In the future, to support an admin upload interface without traditional servers, the architecture will be expanded within the Cloudflare ecosystem:

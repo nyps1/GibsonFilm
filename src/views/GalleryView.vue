@@ -1,8 +1,9 @@
 <template>
   <div class="gallery-view">
-    <HeroSection />
+    <HeroScrollSequence />
 
     <section class="gallery-view__content">
+      <CategoryFilter class="gallery-view__filter" />
       <div class="gallery-view__header">
         <h2 class="gallery-view__heading">
           <span v-if="activeLabel" class="gallery-view__heading-category">{{ activeLabel }}</span>
@@ -32,7 +33,7 @@
 import { computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useGalleryStore } from '@/stores/gallery'
-import HeroSection from '@/components/HeroSection.vue'
+import HeroScrollSequence from '@/components/HeroScrollSequence.vue'
 import GalleryGrid from '@/components/GalleryGrid.vue'
 
 const route = useRoute()

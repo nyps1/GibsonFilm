@@ -15,14 +15,14 @@
      ----------------------------------------------------------------------- */
 
   /* 背景色階 — 由亮至暗 */
-  --color-bg:              #FAFAFA;
-  --color-bg-alt:          #F5F5F5;
-  --color-bg-pure:         #FFFFFF;
-
-  /* 文字色階 — 由深至淺 */
-  --color-text:            #1A1A1A;
-  --color-text-secondary:  #2C2C2C;
-  --color-text-tertiary:   #666666;
+  --color-bg:              #1A1A1A;
+  --color-bg-alt:          #242424;
+  --color-bg-pure:         #111111;
+  
+  /* Text Colors */
+  --color-text:            #F4F4F4;
+  --color-text-secondary:  #CCCCCC;
+  --color-text-tertiary:   #999999;
 
   /* 強調色 */
   --color-accent:          #C4A882;
