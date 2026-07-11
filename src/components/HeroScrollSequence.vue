@@ -11,7 +11,8 @@
         class="viewfinder-content"
         :class="{
           'is-visible': animState === 'zooming' || animState === 'slideshow' || animState === 'done',
-          'is-zoomed': animState === 'slideshow' || animState === 'done'
+          'is-zoomed': animState === 'slideshow' || animState === 'done',
+          'is-done': animState === 'done'
         }"
       >
         <div class="viewfinder-inner">
@@ -221,7 +222,7 @@ const runSlideshow = async () => {
 
   for (let i = 0; i < wowAssets.value.length; i++) {
     wowState.value = i * 2           // flash frame
-    await sleep(120)
+    await sleep(100)                 // exactly 0.1s flash
 
     wowState.value = i * 2 + 1      // photo visible
     await sleep(1300)
@@ -396,6 +397,7 @@ onUnmounted(() => {
 
 .camera-mask-layer.is-hidden {
   opacity: 0;
+  transition: opacity 0s; /* Instant disappear at slideshow start to not block the flash */
 }
 
 /* ─── Viewfinder Content (Stage 3) ────────────────────────────────────────── */
@@ -416,6 +418,12 @@ onUnmounted(() => {
 
 .viewfinder-content.is-zoomed {
   transform: scale(1);
+}
+
+.viewfinder-content.is-done {
+  /* Translate up and scale down to create a gallery frame effect and make room for text below */
+  transform: translate3d(0, -7vh, 0) scale(0.78);
+  transition: transform 1.2s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 /* ─── Camera images ────────────────────────────────────────────────────────── */
@@ -463,7 +471,7 @@ onUnmounted(() => {
   inset: 0;
   background-color: #000;
   z-index: 0;
-  transition: opacity 0.3s ease;
+  /* No transition so it snaps instantly */
 }
 
 .wow-img {
@@ -473,9 +481,9 @@ onUnmounted(() => {
   height: 100%;
   object-fit: cover;
   opacity: 0;
-  transition: opacity 0.1s ease;
   z-index: 1;
   contain: paint;
+  /* No transition so it cuts in instantly behind the flash */
 }
 
 .wow-img.is-visible {
@@ -488,7 +496,7 @@ onUnmounted(() => {
   background-color: #fff;
   opacity: 0;
   z-index: 2;
-  transition: opacity 0.05s ease;
+  /* No transition so it pops on/off instantly */
 }
 
 .white-flash.is-flashing {
@@ -535,7 +543,9 @@ onUnmounted(() => {
 /* ─── Done Hint (after animation) ─────────────────────────────────────────── */
 .done-hint {
   position: absolute;
-  inset: 0;
+  bottom: 8vh;
+  left: 0;
+  right: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -543,8 +553,7 @@ onUnmounted(() => {
   z-index: 10;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 1s ease;
-  background: rgba(15, 14, 23, 0.55);
+  transition: opacity 1.2s ease 0.4s; /* Wait for the photo to shrink and slide up */
   text-align: center;
   padding: 20px;
 }
