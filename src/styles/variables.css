@@ -15,27 +15,31 @@
      ----------------------------------------------------------------------- */
 
   /* 背景色階 — 由亮至暗 */
-  --color-bg:              #1A1A1A;
-  --color-bg-alt:          #242424;
-  --color-bg-pure:         #111111;
+  --color-bg:              #0f0e17;
+  --color-bg-alt:          #161521;
+  --color-bg-pure:         #0a0910;
   
   /* Text Colors */
-  --color-text:            #F4F4F4;
-  --color-text-secondary:  #CCCCCC;
-  --color-text-tertiary:   #999999;
+  --color-text:            #fffffe; /* Headline/Main text */
+  --color-text-secondary:  #a7a9be; /* Paragraph */
+  --color-text-tertiary:   #797a8c;
 
-  /* 強調色 */
-  --color-accent:          #C4A882;
-  --color-accent-hover:    #B89B74;
-  --color-accent-light:    rgba(196, 168, 130, 0.12);
+  /* 強調色 (Button/Highlight) */
+  --color-accent:          #ff8906;
+  --color-accent-hover:    #e07705;
+  --color-accent-light:    rgba(255, 137, 6, 0.12);
+
+  /* 輔助色 (Illustration / Additional) */
+  --color-secondary:       #f25f4c;
+  --color-tertiary:        #e53170;
 
   /* 邊線 */
-  --color-border:          #E8E8E8;
-  --color-border-strong:   #D4D4D4;
+  --color-border:          #2a2b3c;
+  --color-border-strong:   #404258;
 
   /* 功能色 — 僅用於互動回饋 */
-  --color-overlay:         rgba(0, 0, 0, 0.72);
-  --color-overlay-light:   rgba(0, 0, 0, 0.48);
+  --color-overlay:         rgba(15, 14, 23, 0.85); /* 配合暗色背景調整 overlay */
+  --color-overlay-light:   rgba(15, 14, 23, 0.60);
 
   /* -----------------------------------------------------------------------
      間距系統 (Spacing Scale)

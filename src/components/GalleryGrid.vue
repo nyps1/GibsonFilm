@@ -11,7 +11,11 @@
         :key="photo.id"
         ref="cardRefs"
         class="gallery-grid__item"
-        :style="{ '--row-span': getRowSpan(photo.aspectRatio) }"
+        :style="{ 
+          flexGrow: photo.aspectRatio, 
+          flexBasis: (baseHeight * photo.aspectRatio) + 'px',
+          height: baseHeight + 'px'
+        }"
       >
         <PhotoCard
           :photo="photo"
@@ -50,15 +54,6 @@ const isTransitioning = ref(false)
 
 const displayedPhotos = computed(() => props.photos)
 
-const getRowSpan = (aspectRatio) => {
-  if (!aspectRatio || aspectRatio <= 0) return 25
-  // 基礎列高 10px，間距修正
-  const baseHeight = 10
-  const columnWidth = 400
-  const imageHeight = columnWidth / aspectRatio
-  return Math.max(15, Math.ceil(imageHeight / baseHeight) + 2)
-}
-
 const handleOpenLightbox = (photo) => {
   emit('open-lightbox', photo)
 }
@@ -76,7 +71,7 @@ const initObserver = () => {
         if (entry.isIntersecting) {
           const photoId = entry.target.dataset.photoId
           if (photoId) {
-            revealedIds.value = new Set([...revealedIds.value, photoId])
+            revealedIds.value = new Set([...revealedIds.value, Number(photoId)])
           }
           observer.unobserve(entry.target)
         }
@@ -116,30 +111,49 @@ watch(
 onMounted(() => {
   initObserver()
   observeCards()
+  updateBaseHeight()
+  window.addEventListener('resize', updateBaseHeight)
 })
 
 onUnmounted(() => {
   if (observer) {
     observer.disconnect()
   }
+  window.removeEventListener('resize', updateBaseHeight)
 })
+
+const baseHeight = ref(280)
+const updateBaseHeight = () => {
+  const width = window.innerWidth
+  if (width <= 600) {
+    baseHeight.value = 150
+  } else if (width <= 1024) {
+    baseHeight.value = 220
+  } else {
+    baseHeight.value = 280
+  }
+}
 </script>
 
 <style scoped>
 .gallery-grid-section {
   width: 100%;
-  max-width: 1400px;
+  max-width: 1600px; /* 稍微放大最大寬度以容納更多照片行 */
   margin: 0 auto;
   padding: 0 var(--space-6, 40px);
   box-sizing: border-box;
 }
 
 .gallery-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-auto-rows: 10px;
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--space-4, 16px);
   transition: opacity var(--transition-normal, 300ms) ease;
+}
+
+.gallery-grid::after {
+  content: '';
+  flex-grow: 99999;
 }
 
 .gallery-grid--transitioning {
@@ -148,7 +162,8 @@ onUnmounted(() => {
 }
 
 .gallery-grid__item {
-  grid-row-end: span var(--row-span, 25);
+  min-width: 120px;
+  max-width: 600px;
 }
 
 .gallery-grid__empty {
@@ -198,10 +213,6 @@ onUnmounted(() => {
   .gallery-grid-section {
     padding: 0 var(--space-4, 16px);
   }
-
-  .gallery-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
 }
 
 @media (max-width: 600px) {
@@ -210,7 +221,7 @@ onUnmounted(() => {
   }
 
   .gallery-grid {
-    grid-template-columns: 1fr;
+    gap: var(--space-2, 8px);
   }
 }
 </style>
