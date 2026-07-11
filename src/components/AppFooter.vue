@@ -2,7 +2,7 @@
   <footer class="app-footer">
     <div class="app-footer__inner">
       <p class="app-footer__copyright">
-        &copy; {{ currentYear }} Personal Photo Hub. All rights reserved.
+        &copy; {{ currentYear }} Gibson Film. All rights reserved.
       </p>
 
       <nav class="app-footer__social" aria-label="Social links">
@@ -24,7 +24,7 @@
           </svg>
         </a>
         <a
-          href="https://instagram.com"
+          href="https://www.instagram.com/yan_foo0o0o00oto9raph/"
           target="_blank"
           rel="noopener noreferrer"
           class="app-footer__social-link"
@@ -43,43 +43,40 @@
       </nav>
     </div>
 
-    <!-- Hidden Admin Trigger (User Avatar) -->
+    <!-- Hidden Admin Trigger: triple-click within 1 second to enter admin -->
     <img 
       src="/images/admin-trigger.png" 
       alt="" 
       class="app-footer__admin-trigger"
-      @pointerdown="startPress"
-      @pointerup="cancelPress"
-      @pointerleave="cancelPress"
+      @click="handleTriggerClick"
       @contextmenu.prevent
     />
-
-    <AdminUploadModal :isOpen="isAdminOpen" @close="isAdminOpen = false" />
   </footer>
 </template>
 
 <script setup>
 import { ref } from 'vue'
-import AdminUploadModal from '@/components/AdminUploadModal.vue'
+import { useRouter } from 'vue-router'
 
+const router = useRouter()
 const currentYear = new Date().getFullYear()
 
-const isAdminOpen = ref(false)
-let pressTimer = null
+// Triple-click admin trigger: 3 clicks within 1 second
+let clickCount = 0
+let clickTimer = null
 
-const startPress = (e) => {
-  // 僅限左鍵點擊或觸控
-  if (e.pointerType === 'mouse' && e.button !== 0) return
-  
-  pressTimer = setTimeout(() => {
-    isAdminOpen.value = true
-  }, 5000)
-}
-
-const cancelPress = () => {
-  if (pressTimer) {
-    clearTimeout(pressTimer)
-    pressTimer = null
+const handleTriggerClick = () => {
+  clickCount++
+  if (clickCount === 1) {
+    // Start the 1-second window after first click
+    clickTimer = setTimeout(() => {
+      clickCount = 0
+    }, 1000)
+  } else if (clickCount >= 3) {
+    clearTimeout(clickTimer)
+    clickTimer = null
+    clickCount = 0
+    router.push('/admin')
   }
 }
 </script>
