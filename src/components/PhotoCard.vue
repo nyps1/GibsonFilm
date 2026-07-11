@@ -17,7 +17,7 @@
       <!-- Shimmer placeholder -->
       <div
         class="photo-card__shimmer"
-        :class="{ 'photo-card__shimmer--hidden': isThumbLoaded }"
+        :class="{ 'photo-card__shimmer--hidden': isThumbLoaded || isFullLoaded }"
         aria-hidden="true"
       ></div>
 
@@ -141,7 +141,7 @@ const handleClick = () => {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background-color: var(--color-surface, #FFFFFF);
+  background-color: var(--color-bg-alt, #161521);
 }
 
 /* Shimmer 載入動畫 */
@@ -151,9 +151,9 @@ const handleClick = () => {
   z-index: 3;
   background: linear-gradient(
     110deg,
-    var(--color-border, #E8E8E8) 8%,
-    var(--color-surface, #FFFFFF) 18%,
-    var(--color-border, #E8E8E8) 33%
+    var(--color-border, #2a2b3c) 8%,
+    var(--color-bg-alt, #161521) 18%,
+    var(--color-border, #2a2b3c) 33%
   );
   background-size: 200% 100%;
   animation: shimmer 1.6s linear infinite;
