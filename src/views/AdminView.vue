@@ -229,7 +229,15 @@ const generateJson = () => {
     }
   })
 
-  const merged = [...existing, ...newEntries]
+  const merged = {
+    categories: galleryStore.categories.length > 0 ? galleryStore.categories : [
+      { id: 'landscape', name: 'Landscape' },
+      { id: 'portrait', name: 'Portrait' },
+      { id: 'street', name: 'Street' },
+      { id: 'travel', name: 'Travel' }
+    ],
+    photos: [...existing, ...newEntries]
+  }
 
   const blob = new Blob([JSON.stringify(merged, null, 2)], { type: 'application/json' })
   const url = URL.createObjectURL(blob)

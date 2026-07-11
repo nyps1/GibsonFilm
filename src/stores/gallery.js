@@ -80,11 +80,29 @@ export const useGalleryStore = defineStore('gallery', () => {
 
       const data = await response.json()
 
-      photos.value = [...data.photos].sort(
-        (a, b) => a.sortOrder - b.sortOrder
+      let loadedPhotos = []
+      let loadedCategories = []
+
+      if (Array.isArray(data)) {
+        // Handle flat array format
+        loadedPhotos = data
+        // Dynamically extract unique categories present in the photos
+        const uniqueCategories = [...new Set(data.map((p) => p.category).filter(Boolean))]
+        loadedCategories = uniqueCategories.map((cat) => ({
+          id: cat,
+          name: cat.charAt(0).toUpperCase() + cat.slice(1)
+        }))
+      } else if (data && typeof data === 'object') {
+        // Handle structured object format { photos, categories }
+        loadedPhotos = data.photos ?? []
+        loadedCategories = data.categories ?? []
+      }
+
+      photos.value = [...loadedPhotos].sort(
+        (a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999)
       )
 
-      categories.value = data.categories ?? []
+      categories.value = loadedCategories
     } catch (err) {
       error.value = err instanceof Error ? err.message : String(err)
       console.error('[gallery store] fetchPhotos failed:', err)
