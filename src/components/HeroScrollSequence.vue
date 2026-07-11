@@ -11,7 +11,7 @@
         class="viewfinder-content"
         :class="{
           'is-visible': animState === 'zooming' || animState === 'slideshow' || animState === 'done',
-          'is-zoomed': animState === 'slideshow' || animState === 'done',
+          'is-zoomed': animState === 'zooming' || animState === 'slideshow' || animState === 'done',
           'is-done': animState === 'done'
         }"
       >
