@@ -7,14 +7,10 @@
       '--viewfinder-height': `${viewfinderH * targetScale}px`
     }" @mousemove="handleMouseMove" @mouseleave="handleMouseLeave">
       
-      <!-- === Stage 3: 觀景窗內閃光與照片輪播 === -->
+      <!-- === Stage 3: Viewfinder flash & photo slideshow === -->
       <div 
         class="viewfinder-content"
-        :style="{
-          opacity: viewOpacity,
-          transform: `scale(${cameraScale / targetScale})`,
-          transformOrigin: 'var(--viewfinder-x) var(--viewfinder-y)'
-        }"
+        :style="viewfinderStyle"
       >
         <div class="viewfinder-inner">
           <div class="view-black-bg" :style="{ opacity: wowState >= 0 ? 1 : 0 }"></div>
@@ -35,29 +31,22 @@
         </div>
       </div>
 
-      <!-- === Stage 2: 相機背面觀景窗 === -->
+      <!-- === Stage 2: Camera rear viewfinder === -->
       <div 
         class="camera-mask-layer"
-        :style="{
-          transform: `scale(${cameraScale})`,
-          transformOrigin: 'var(--viewfinder-x) var(--viewfinder-y)',
-          opacity: cameraMaskOpacity
-        }"
+        :style="cameraMaskStyle"
       >
         <img :src="cameraAssets.view" alt="" class="camera-img" />
       </div>
 
-      <!-- === Stage 1: 正面 3D 滑鼠視差 === -->
-      <div class="camera-front-layer" :style="{ opacity: frontOpacity, perspective: '1000px' }">
+      <!-- === Stage 1: Front 3D mouse parallax === -->
+      <div class="camera-front-layer" :style="frontLayerStyle">
         <div class="idle-float">
           <img 
             :src="cameraAssets.front" 
             alt="" 
             class="camera-img" 
-            :style="{ 
-              transform: `rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateZ(0px) translate(${bodyX}px, ${bodyY}px)`,
-              transition: 'transform 0.15s ease-out'
-            }"
+            :style="bodyImgStyle"
           />
         </div>
         <div class="idle-float" v-if="cameraAssets.lens">
@@ -65,22 +54,18 @@
             :src="cameraAssets.lens" 
             alt="" 
             class="camera-img lens-img" 
-            :style="{ 
-              transform: `rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateZ(60px) translate(${lenX}px, ${lenY}px)`,
-              transition: 'transform 0.15s ease-out'
-            }"
+            :style="lensImgStyle"
           />
         </div>
       </div>
       
       <!-- Scroll Prompt before Zoomin -->
       <div class="scroll-prompt" :style="{ opacity: promptOpacity }">
-        <span class="scroll-prompt__arrow">↓</span>
+        <span class="scroll-prompt__arrow">&#8595;</span>
         <p class="scroll-prompt__text">Scroll down to explore</p>
       </div>
 
-      <!-- Release 提示文字 (動畫播完後浮現) -->
-      <!-- 動態判斷：當 wowState 大於等於最後一張照片顯示的狀態 (length * 2 - 1) 時浮現 -->
+      <!-- Release hint (appears after slideshow finishes) -->
       <div class="release-hint" :style="{ opacity: (wowAssets.length > 0 && wowState >= (wowAssets.length * 2 - 1)) ? 1 : 0 }">
         <h2 class="release-title">Personal Photo Hub</h2>
         <p class="release-subtitle">Capturing Moments in Film</p>
@@ -111,19 +96,17 @@ const wowAssets = computed(() => {
 
 const MATCH_CUT_START = 0.30
 const MATCH_CUT_END = 0.40
-const ZOOM_END = 0.70 // 提早結束推進放大，留出一段「已經拉完」的停頓感
+const ZOOM_END = 0.70
 const VIEWFINDER_FADE_OUT_START = 0.90
 
-// 這裡刻意使用 Hysteresis (遲滯現象/緩衝區間) 的設計
-// 避免使用者在臨界點附近微幅來回滾動時，動畫瘋狂觸發又重置而產生閃爍
-const WOW_TRIGGER_THRESHOLD = 0.80 // 必須繼續往下滾動超過 80% 才觸發輪播
-const WOW_RESET_THRESHOLD = 0.75   // 必須往上滾動低於 75% 才會重置動畫
+const WOW_TRIGGER_THRESHOLD = 0.80
+const WOW_RESET_THRESHOLD = 0.75
 
 const containerRef = ref(null)
 const scrollProgress = ref(0)
-let ticking = false
+let rafId = null
 
-// --- 動態計算相機挖空座標與縮放比例 ---
+// --- Dynamic viewfinder coordinate & scale calculation ---
 const viewfinderX = ref(0)
 const viewfinderY = ref(0)
 const viewfinderW = ref(0)
@@ -134,15 +117,12 @@ const updateLayout = () => {
   const ww = window.innerWidth
   const wh = window.innerHeight
   
-  // 基準相機圖片渲染大小
   const MAX_IMG_WIDTH = 800
   const IMG_W = 2390
   const IMG_H = 1792
   
-  // 實際偵測 canon-a1_view.jpg 的真實中心點，確保完美置中
   const HOLE_CX = 1100
   const HOLE_CY = 500
-  // 刻意縮小開口尺寸定義，迫使 targetScale 衝到 15x~20x，達成超深度的拉近效果
   const HOLE_W = 234
   const HOLE_H = 171
   
@@ -152,13 +132,11 @@ const updateLayout = () => {
   const imageLeft = (ww - renderedWidth) / 2
   const imageTop = (wh - renderedHeight) / 2
   
-  // 計算在螢幕上的絕對像素座標
   const holeX = imageLeft + renderedWidth * (HOLE_CX / IMG_W)
   const holeY = imageTop + renderedHeight * (HOLE_CY / IMG_H)
   const holeWidth = renderedWidth * (HOLE_W / IMG_W)
   const holeHeight = renderedHeight * (HOLE_H / IMG_H)
   
-  // 目標是讓照片放大後佔螢幕寬度的 85% 或高度的 80%，取適合的縮放比
   const scaleW = (ww * 0.85) / holeWidth
   const scaleH = (wh * 0.80) / holeHeight
   const scale = Math.max(1, Math.min(scaleW, scaleH))
@@ -190,61 +168,66 @@ const handleMouseLeave = () => {
 
 const bodyX = computed(() => mouseX.value * 8)
 const bodyY = computed(() => mouseY.value * 8)
-const lenX = computed(() => mouseX.value * 15) // 微調 X 位移
+const lenX = computed(() => mouseX.value * 15)
 const lenY = computed(() => mouseY.value * 15)
 
-// 加入 3D 旋轉角度，讓相機看起來像是在手中翻轉
 const rotateX = computed(() => -mouseY.value * 12)
 const rotateY = computed(() => mouseX.value * 12)
 
 const promptOpacity = computed(() => {
   const p = scrollProgress.value
-  // 在滾動開始前（p = 0）完全可見，隨著滾動接近匹配點（p = 0.20）淡出至 0
   if (p >= 0.20) return 0
   return 1 - p / 0.20
 })
 
-// --- Scroll Logic ---
-const handleScroll = () => {
-  if (!ticking && containerRef.value) {
-    window.requestAnimationFrame(() => {
-      const rect = containerRef.value.getBoundingClientRect()
-      const maxScroll = rect.height - window.innerHeight
-      
-      // 防呆機制：若容器高度小於等於視窗高度（例如外部 CSS 覆寫、或特殊螢幕比例）
-      // 就直接將進度歸零並返回，避免產生 NaN 導致後續 Computed 全部失效
-      if (maxScroll <= 0) {
-        scrollProgress.value = 0
-        ticking = false
-        return
-      }
+// --- Scroll Logic (optimised: single rAF loop, no getBoundingClientRect inside rAF) ---
+let containerTop = 0
+let containerHeight = 0
 
-      const currentScroll = -rect.top
-      
-      let progress = currentScroll / maxScroll
-      progress = Math.max(0, Math.min(1, progress))
-      scrollProgress.value = progress
-      
-      if (progress > MATCH_CUT_START && !isParallaxLocked.value) {
-        isParallaxLocked.value = true
-        mouseX.value = 0
-        mouseY.value = 0
-      } else if (progress <= MATCH_CUT_START && isParallaxLocked.value) {
-        isParallaxLocked.value = false
-      }
-      
-      ticking = false
-    })
-    ticking = true
+const cacheContainerMetrics = () => {
+  if (!containerRef.value) return
+  const rect = containerRef.value.getBoundingClientRect()
+  containerTop = rect.top + window.scrollY
+  containerHeight = rect.height
+}
+
+const tick = () => {
+  const maxScroll = containerHeight - window.innerHeight
+  if (maxScroll <= 0) {
+    scrollProgress.value = 0
+    rafId = null
+    return
+  }
+
+  const currentScroll = window.scrollY - containerTop
+  let progress = currentScroll / maxScroll
+  progress = Math.max(0, Math.min(1, progress))
+  scrollProgress.value = progress
+
+  if (progress > MATCH_CUT_START && !isParallaxLocked.value) {
+    isParallaxLocked.value = true
+    mouseX.value = 0
+    mouseY.value = 0
+  } else if (progress <= MATCH_CUT_START && isParallaxLocked.value) {
+    isParallaxLocked.value = false
+  }
+
+  rafId = null
+}
+
+const handleScroll = () => {
+  if (rafId === null) {
+    rafId = requestAnimationFrame(tick)
   }
 }
 
 const handleResize = () => {
   updateLayout()
+  cacheContainerMetrics()
   handleScroll()
 }
 
-// === Stage 1 ➔ 2: The Match Cut ===
+// === Stage 1 -> 2: The Match Cut ===
 const frontOpacity = computed(() => {
   const p = scrollProgress.value
   if (p < MATCH_CUT_START) return 1
@@ -252,34 +235,62 @@ const frontOpacity = computed(() => {
   return 1 - ((p - MATCH_CUT_START) / (MATCH_CUT_END - MATCH_CUT_START))
 })
 
-// viewOpacity 控制相機「觀景窗內容 (Wow 照片)」的透明度
 const viewOpacity = computed(() => {
   const p = scrollProgress.value
   if (p < MATCH_CUT_START) return 0
-  if (p > VIEWFINDER_FADE_OUT_START) return 0 // 抵達底部前淡出
+  if (p > VIEWFINDER_FADE_OUT_START) return 0
   if (p >= MATCH_CUT_END) return 1
   return (p - MATCH_CUT_START) / (MATCH_CUT_END - MATCH_CUT_START)
 })
 
-// cameraMaskOpacity 控制相機「機身背面」的透明度
 const cameraMaskOpacity = computed(() => {
   const p = scrollProgress.value
   if (p < MATCH_CUT_START) return 0
-  // 當正式觸發輪播 (WOW_TRIGGER_THRESHOLD) 時，直接把相機背面圖層隱藏，完全不遮擋接下來的照片
   if (p >= WOW_TRIGGER_THRESHOLD) return 0
   if (p >= MATCH_CUT_END) return 1
   return (p - MATCH_CUT_START) / (MATCH_CUT_END - MATCH_CUT_START)
 })
 
-// === Stage 2 ➔ 3: The Zoom In ===
+// === Stage 2 -> 3: The Zoom In ===
+// Easing: smoothstep (cubic Hermite) instead of quadratic for smoother perceived acceleration
 const cameraScale = computed(() => {
   const p = scrollProgress.value
   if (p <= MATCH_CUT_END) return 1
   if (p >= ZOOM_END) return targetScale.value
   
-  const ratio = Math.max(0, Math.min(1, (p - MATCH_CUT_END) / (ZOOM_END - MATCH_CUT_END)))
-  return 1 + Math.pow(ratio, 2) * (targetScale.value - 1)
+  let t = Math.max(0, Math.min(1, (p - MATCH_CUT_END) / (ZOOM_END - MATCH_CUT_END)))
+  // smoothstep: 3t^2 - 2t^3 — starts and ends gently, peaks in the middle
+  t = t * t * (3 - 2 * t)
+  return 1 + t * (targetScale.value - 1)
 })
+
+// --- Consolidated inline style objects (avoid per-frame object allocation in template) ---
+const viewfinderStyle = computed(() => ({
+  opacity: viewOpacity.value,
+  transform: `scale(${cameraScale.value / targetScale.value})`,
+  transformOrigin: `var(--viewfinder-x) var(--viewfinder-y)`
+}))
+
+const cameraMaskStyle = computed(() => ({
+  transform: `scale(${cameraScale.value})`,
+  transformOrigin: `var(--viewfinder-x) var(--viewfinder-y)`,
+  opacity: cameraMaskOpacity.value
+}))
+
+const frontLayerStyle = computed(() => ({
+  opacity: frontOpacity.value,
+  perspective: '1000px'
+}))
+
+const bodyImgStyle = computed(() => ({
+  transform: `rotateX(${rotateX.value}deg) rotateY(${rotateY.value}deg) translate3d(${bodyX.value}px, ${bodyY.value}px, 0)`,
+  transition: 'transform 0.15s ease-out'
+}))
+
+const lensImgStyle = computed(() => ({
+  transform: `rotateX(${rotateX.value}deg) rotateY(${rotateY.value}deg) translate3d(${lenX.value}px, ${lenY.value}px, 60px)`,
+  transition: 'transform 0.15s ease-out'
+}))
 
 // --- Stage 3: Auto Flash Slideshow ---
 const wowState = ref(-1)
@@ -292,8 +303,6 @@ const startWowAnimation = async () => {
   
   wowState.value = -1
 
-  // 資料驅動的輪播動畫：支援動態數量增減
-  // index * 2 代表閃光階段，index * 2 + 1 代表顯示照片階段
   for (let i = 0; i < wowAssets.value.length; i++) {
     wowState.value = i * 2
     await sleep(100); if(wowState.value === -1) return;
@@ -317,18 +326,17 @@ watch(() => scrollProgress.value, (newVal) => {
 })
 
 onMounted(() => {
-  // 強制讓使用者每次進入頁面或重新整理時，都回到最頂部，確保一開始安靜地停留在 Canon A1
   window.scrollTo(0, 0)
   
   updateLayout()
+  cacheContainerMetrics()
 
-  // 加入 passive: true 提升效能
   window.addEventListener('scroll', handleScroll, { passive: true })
   window.addEventListener('resize', handleResize, { passive: true })
   
-  // 延遲觸發一次以確保瀏覽器完成滾動重置與渲染
   setTimeout(() => {
     updateLayout()
+    cacheContainerMetrics()
     handleScroll()
   }, 50)
 })
@@ -336,19 +344,26 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('scroll', handleScroll)
   window.removeEventListener('resize', handleResize)
+  if (rafId !== null) cancelAnimationFrame(rafId)
   if (animationTimeout) clearTimeout(animationTimeout)
 })
 </script>
 
 <style scoped>
 .scroll-container {
-  height: 800vh;
+  height: 500vh;
   position: relative;
   background-color: var(--color-bg);
-  z-index: 200; /* 蓋過頂部的 Header 導覽列，營造沉浸式體驗 */
+  z-index: 200;
 }
 
-/* 行動裝置版本縮減高度，避免體驗過長 */
+/* Tablet breakpoint for smooth transition */
+@media (max-width: 1024px) {
+  .scroll-container {
+    height: 450vh;
+  }
+}
+
 @media (max-width: 768px) {
   .scroll-container {
     height: 400vh;
@@ -360,21 +375,27 @@ onUnmounted(() => {
   top: 0;
   width: 100%;
   height: 100vh;
+  height: 100dvh; /* Use dynamic viewport height for mobile address bar */
   overflow: hidden;
   background-color: var(--color-bg);
   display: flex;
   align-items: center;
   justify-content: center;
+  touch-action: pan-y; /* Tell browser we only need vertical scroll */
 }
 
-/* --- 圖層共用設定 --- */
+/* --- Layer shared settings --- */
 .camera-mask-layer, .camera-front-layer, .viewfinder-content {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  will-change: transform, opacity;
+  /* GPU-accelerated compositing layer promotion */
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 .camera-front-layer {
@@ -397,6 +418,10 @@ onUnmounted(() => {
   max-width: 800px;
   height: auto;
   object-fit: contain;
+  /* Prevent image rendering from causing jank during transforms */
+  image-rendering: auto;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
 }
 
 .lens-img {
@@ -416,7 +441,7 @@ onUnmounted(() => {
   50% { transform: translateY(6px); }
 }
 
-/* --- 觀景窗內部 (Wow 照與閃光) --- */
+/* --- Viewfinder inner (Wow photos & flash) --- */
 .viewfinder-inner {
   position: absolute;
   top: var(--viewfinder-y);
@@ -448,6 +473,8 @@ onUnmounted(() => {
   opacity: 0;
   transition: opacity 0.1s ease;
   z-index: 1;
+  /* Prevent compositing overhead until visible */
+  contain: paint;
 }
 
 .wow-img.is-visible {
@@ -466,7 +493,7 @@ onUnmounted(() => {
   opacity: 1;
 }
 
-/* --- Release 提示文字 --- */
+/* --- Release hint text --- */
 .release-hint {
   position: absolute;
   bottom: 10%;
@@ -499,7 +526,7 @@ onUnmounted(() => {
   margin: 0;
 }
 
-/* --- Scroll Prompt 提示詞 --- */
+/* --- Scroll Prompt --- */
 .scroll-prompt {
   position: absolute;
   bottom: 8%;
