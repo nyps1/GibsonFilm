@@ -104,7 +104,15 @@ const cameraAssets = {
 const galleryStore = useGalleryStore()
 
 const wowAssets = computed(() => {
-  const items = galleryStore.photos.slice(0, 3)
+  const heroItems = galleryStore.photos.filter(p => p.hero === true)
+  heroItems.sort((a, b) => (a.heroOrder || 99) - (b.heroOrder || 99))
+  
+  if (heroItems.length < 3) {
+    const moreItems = galleryStore.photos.filter(p => !p.hero).slice(0, 3 - heroItems.length)
+    heroItems.push(...moreItems)
+  }
+  
+  const items = heroItems.slice(0, 3)
   return items.length > 0 ? items.map(p => p.src) : []
 })
 
