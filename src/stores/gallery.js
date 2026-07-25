@@ -18,7 +18,8 @@ export const useGalleryStore = defineStore('gallery', () => {
   // -- State --
   const photos = ref([])
   const categories = ref([])
-  const activeCategory = ref('')
+  const randomPhotos = ref([])
+  const activeCategory = ref('random')
   const lightbox = ref({
     isOpen: false,
     currentIndex: 0
@@ -33,8 +34,8 @@ export const useGalleryStore = defineStore('gallery', () => {
    * 'all' 回傳完整列表，否則比對 category 欄位。
    */
   const filteredPhotos = computed(() => {
-    if (!activeCategory.value || activeCategory.value === 'all') {
-      return photos.value
+    if (!activeCategory.value || activeCategory.value === 'random' || activeCategory.value === 'all') {
+      return randomPhotos.value
     }
     return photos.value.filter(
       (photo) => photo.category === activeCategory.value
@@ -104,9 +105,19 @@ export const useGalleryStore = defineStore('gallery', () => {
 
       categories.value = loadedCategories
       
-      // 若目前的 activeCategory 為空且有分類資料，預設選中第一個分類
-      if ((!activeCategory.value || activeCategory.value === 'all') && categories.value.length > 0) {
-        activeCategory.value = categories.value[0].id
+      // 隨機挑選 100 張照片 (Fisher-Yates Shuffle)
+      const shuffled = [...photos.value]
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        const temp = shuffled[i]
+        shuffled[i] = shuffled[j]
+        shuffled[j] = temp
+      }
+      randomPhotos.value = shuffled.slice(0, 100)
+      
+      // 若目前的 activeCategory 為空或 all，預設切換為 random
+      if (!activeCategory.value || activeCategory.value === 'all') {
+        activeCategory.value = 'random'
       }
     } catch (err) {
       error.value = err instanceof Error ? err.message : String(err)

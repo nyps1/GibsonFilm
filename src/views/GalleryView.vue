@@ -40,7 +40,7 @@ const route = useRoute()
 const store = useGalleryStore()
 
 const activeLabel = computed(() => {
-  if (store.activeCategory === 'all' || !store.activeCategory) return null
+  if (store.activeCategory === 'random' || store.activeCategory === 'all' || !store.activeCategory) return null
   const cat = store.categories.find((c) => c.id === store.activeCategory)
   return cat ? cat.name : store.activeCategory
 })
@@ -57,10 +57,8 @@ watch(
   (category) => {
     if (category) {
       store.setCategory(category)
-    } else if (store.categories.length > 0) {
-      store.setCategory(store.categories[0].id)
     } else {
-      store.setCategory('')
+      store.setCategory('random')
     }
   },
   { immediate: true }

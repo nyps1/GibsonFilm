@@ -1,7 +1,17 @@
 <template>
   <nav class="category-filter" aria-label="Filter by category">
     <ul class="category-filter__list" role="tablist">
-
+      <li class="category-filter__item" role="presentation">
+        <button
+          class="category-filter__pill"
+          :class="{ 'category-filter__pill--active': galleryStore.activeCategory === 'random' }"
+          role="tab"
+          :aria-selected="galleryStore.activeCategory === 'random'"
+          @click="selectCategory('random')"
+        >
+          Discover
+        </button>
+      </li>
       <li
         v-for="category in galleryStore.categories"
         :key="category.id"
