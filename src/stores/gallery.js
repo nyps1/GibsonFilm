@@ -18,7 +18,7 @@ export const useGalleryStore = defineStore('gallery', () => {
   // -- State --
   const photos = ref([])
   const categories = ref([])
-  const activeCategory = ref('all')
+  const activeCategory = ref('')
   const lightbox = ref({
     isOpen: false,
     currentIndex: 0
@@ -33,7 +33,7 @@ export const useGalleryStore = defineStore('gallery', () => {
    * 'all' 回傳完整列表，否則比對 category 欄位。
    */
   const filteredPhotos = computed(() => {
-    if (activeCategory.value === 'all') {
+    if (!activeCategory.value || activeCategory.value === 'all') {
       return photos.value
     }
     return photos.value.filter(
@@ -103,6 +103,11 @@ export const useGalleryStore = defineStore('gallery', () => {
       )
 
       categories.value = loadedCategories
+      
+      // 若目前的 activeCategory 為空且有分類資料，預設選中第一個分類
+      if ((!activeCategory.value || activeCategory.value === 'all') && categories.value.length > 0) {
+        activeCategory.value = categories.value[0].id
+      }
     } catch (err) {
       error.value = err instanceof Error ? err.message : String(err)
       console.error('[gallery store] fetchPhotos failed:', err)
