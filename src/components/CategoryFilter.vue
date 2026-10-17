@@ -13,7 +13,7 @@
         </button>
       </li>
       <li
-        v-for="category in galleryStore.categories"
+        v-for="category in visibleCategories"
         :key="category.id"
         class="category-filter__item"
         role="presentation"
@@ -40,13 +40,30 @@
  * 直接使用 store 的 activeCategory 作為唯一狀態來源，
  * 避免本地 ref 與 store 狀態不同步的問題。
  */
+import { computed } from 'vue'
 import { useGalleryStore } from '@/stores/gallery'
 
 const galleryStore = useGalleryStore()
 
 const emit = defineEmits(['category-change'])
 
+/**
+ * 過濾掉舊版殘留的 'all' 分類項目，僅顯示實際資料夾分類。
+ * @returns {Array<{id: string, name: string}>} 過濾後的分類陣列。
+ */
+const visibleCategories = computed(() =>
+  galleryStore.categories.filter((c) => c.id !== 'all')
+)
+
+/**
+ * 切換目前啟用的相片分類。若點擊隨機分類則支援重新抽取 100 張照片。
+ * @param {string} categoryId - 目標分類識別碼。
+ * @returns {void}
+ */
 const selectCategory = (categoryId) => {
+  if (categoryId === 'random' && galleryStore.activeCategory === 'random' && typeof galleryStore.shuffleRandomPhotos === 'function') {
+    galleryStore.shuffleRandomPhotos()
+  }
   galleryStore.setCategory(categoryId)
   emit('category-change', categoryId)
 }

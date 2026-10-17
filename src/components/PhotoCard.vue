@@ -35,7 +35,7 @@
 
       <!-- Full resolution image -->
       <img
-        :src="photo.src"
+        :src="encodedSrc"
         :alt="photo.title || 'Photograph'"
         class="photo-card__full"
         :class="{ 'photo-card__full--visible': isFullLoaded }"
@@ -68,7 +68,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 const props = defineProps({
   photo: {
@@ -86,14 +86,35 @@ const isThumbLoaded = ref(false)
 const isFullLoaded = ref(false)
 const isRevealed = ref(false)
 
+const encodedSrc = computed(() => {
+  if (!props.photo.src) return ''
+  try {
+    return encodeURI(decodeURI(props.photo.src)).replace(/#/g, '%23').replace(/\+/g, '%2B')
+  } catch {
+    return encodeURI(props.photo.src).replace(/#/g, '%23').replace(/\+/g, '%2B')
+  }
+})
+
+/**
+ * 標記微型預覽縮圖（LQIP）已載入完成。
+ * @returns {void}
+ */
 const onThumbLoad = () => {
   isThumbLoaded.value = true
 }
 
+/**
+ * 標記高解析度 WebP 主圖已載入完成。
+ * @returns {void}
+ */
 const onFullLoad = () => {
   isFullLoaded.value = true
 }
 
+/**
+ * 觸發點擊事件並通知父元件開啟 Lightbox。
+ * @returns {void}
+ */
 const handleClick = () => {
   emit('open-lightbox', props.photo)
 }
@@ -111,7 +132,6 @@ const handleClick = () => {
   transition:
     transform var(--transition-normal, 300ms) cubic-bezier(0.25, 0.46, 0.45, 0.94),
     box-shadow var(--transition-normal, 300ms) ease;
-  will-change: transform;
   /* scroll-reveal 初始狀態 */
   opacity: 0;
   transform: translateY(30px);
@@ -127,6 +147,7 @@ const handleClick = () => {
 }
 
 .photo-card:hover {
+  will-change: transform;
   transform: scale(1.02);
   box-shadow: var(--shadow-medium, 0 4px 12px rgba(0, 0, 0, 0.1));
 }

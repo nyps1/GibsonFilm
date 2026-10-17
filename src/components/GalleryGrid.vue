@@ -12,14 +12,14 @@
         ref="cardRefs"
         class="gallery-grid__item"
         :style="{ 
-          flexGrow: photo.aspectRatio, 
-          flexBasis: (baseHeight * photo.aspectRatio) + 'px',
+          flexGrow: photo.aspectRatio || 1.5, 
+          flexBasis: (baseHeight * (photo.aspectRatio || 1.5)) + 'px',
           height: baseHeight + 'px'
         }"
       >
         <PhotoCard
           :photo="photo"
-          :class="{ 'photo-reveal': revealedIds.has(photo.id) }"
+          :class="{ 'photo-reveal': revealedIds.has(String(photo.id)) }"
           @open-lightbox="handleOpenLightbox"
         />
       </div>
@@ -54,12 +54,22 @@ const isTransitioning = ref(false)
 
 const displayedPhotos = computed(() => props.photos)
 
+/**
+ * 向上層發出開啟 Lightbox 事件。
+ * @param {Object} photo - 被點擊的照片物件。
+ * @returns {void}
+ */
 const handleOpenLightbox = (photo) => {
   emit('open-lightbox', photo)
 }
 
 let observer = null
+let transitionTimer = null
 
+/**
+ * 初始化 IntersectionObserver，監測卡片進入可視範圍時觸發漸顯動畫。
+ * @returns {void}
+ */
 const initObserver = () => {
   if (observer) {
     observer.disconnect()
@@ -71,7 +81,9 @@ const initObserver = () => {
         if (entry.isIntersecting) {
           const photoId = entry.target.dataset.photoId
           if (photoId) {
-            revealedIds.value = new Set([...revealedIds.value, Number(photoId)])
+            const nextSet = new Set(revealedIds.value)
+            nextSet.add(String(photoId))
+            revealedIds.value = nextSet
           }
           observer.unobserve(entry.target)
         }
@@ -84,6 +96,10 @@ const initObserver = () => {
   )
 }
 
+/**
+ * 於 DOM 更新後將所有畫廊卡片綁定至 IntersectionObserver。
+ * @returns {void}
+ */
 const observeCards = () => {
   nextTick(() => {
     const items = document.querySelectorAll('.gallery-grid__item')
@@ -100,12 +116,12 @@ watch(
   () => props.photos,
   () => {
     isTransitioning.value = true
-    setTimeout(() => {
+    if (transitionTimer) clearTimeout(transitionTimer)
+    transitionTimer = setTimeout(() => {
       isTransitioning.value = false
       observeCards()
     }, 350)
-  },
-  { deep: true }
+  }
 )
 
 onMounted(() => {
@@ -119,10 +135,18 @@ onUnmounted(() => {
   if (observer) {
     observer.disconnect()
   }
+  if (transitionTimer) {
+    clearTimeout(transitionTimer)
+  }
   window.removeEventListener('resize', updateBaseHeight)
 })
 
 const baseHeight = ref(280)
+
+/**
+ * 根據視窗寬度動態調整瀑布流基準列高（RWD）。
+ * @returns {void}
+ */
 const updateBaseHeight = () => {
   const width = window.innerWidth
   if (width <= 600) {

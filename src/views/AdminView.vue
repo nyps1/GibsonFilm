@@ -198,34 +198,35 @@ const applyGlobalCamera = () => {
   queue.forEach(item => { item.camera = globalCamera.value })
 }
 
+/**
+ * 合併既有照片清單與新佇列項目，並觸發瀏覽器下載完整結構的 photos.json。
+ * @returns {void}
+ */
 const generateJson = () => {
-  // Build new entries (photo files themselves must still be placed manually)
-  const existing = galleryStore.photos.map(p => ({
-    id: p.id,
-    src: p.src,
-    url: p.url || p.src,
-    title: p.title || '',
-    category: p.category || 'landscape',
-    camera: p.camera || '',
-    placeholder: p.placeholder || '',
-    width: p.width || 4000,
-    height: p.height || 3000,
-  }))
+  const existing = galleryStore.photos.map((p) => {
+    const copy = { ...p, src: p.rawSrc || p.src }
+    delete copy.rawSrc
+    return copy
+  })
 
-  const newEntries = queue.map(item => {
+  const maxSortOrder = existing.reduce((max, p) => Math.max(max, p.sortOrder || 0), 0)
+
+  const newEntries = queue.map((item, idx) => {
     const safeName = item.filename.replace(/\s+/g, '-').toLowerCase()
     const webpName = safeName.replace(/\.[^.]+$/, '.webp')
     const src = `/images/gallery/${webpName}`
+    const sortOrder = maxSortOrder + idx + 1
     return {
-      id: `photo-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      id: sortOrder,
       src,
-      url: src,
       title: item.title,
       category: item.category,
       camera: item.camera,
-      placeholder: '',
-      width: 4000,
-      height: 3000,
+      thumb: '',
+      width: 1920,
+      height: 1280,
+      aspectRatio: 1.5,
+      sortOrder
     }
   })
 

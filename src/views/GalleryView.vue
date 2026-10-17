@@ -34,6 +34,7 @@ import { computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useGalleryStore } from '@/stores/gallery'
 import HeroScrollSequence from '@/components/HeroScrollSequence.vue'
+import CategoryFilter from '@/components/CategoryFilter.vue'
 import GalleryGrid from '@/components/GalleryGrid.vue'
 
 const route = useRoute()
@@ -45,6 +46,11 @@ const activeLabel = computed(() => {
   return cat ? cat.name : store.activeCategory
 })
 
+/**
+ * 開啟 Lightbox 檢視器並定位至點擊之照片索引。
+ * @param {Object} photo - 被點擊的照片資料物件。
+ * @returns {void}
+ */
 const handleOpenLightbox = (photo) => {
   const index = store.filteredPhotos.findIndex((p) => p.id === photo.id)
   if (index >= 0) {
@@ -72,6 +78,13 @@ watch(
 
 .gallery-view__content {
   padding: var(--space-12, 48px) 0 var(--space-16, 64px);
+}
+
+.gallery-view__filter {
+  max-width: 1400px;
+  margin: 0 auto var(--space-6, 24px);
+  padding: 0 var(--space-6, 24px);
+  box-sizing: border-box;
 }
 
 .gallery-view__header {
@@ -108,6 +121,11 @@ watch(
 @media (max-width: 768px) {
   .gallery-view__content {
     padding: var(--space-8, 32px) 0 var(--space-12, 48px);
+  }
+
+  .gallery-view__filter {
+    padding: 0 var(--space-4, 16px);
+    margin-bottom: var(--space-4, 16px);
   }
 
   .gallery-view__header {
