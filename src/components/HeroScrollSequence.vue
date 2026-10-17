@@ -6,13 +6,14 @@
       @mousemove="handleMouseMove"
       @mouseleave="handleMouseLeave"
     >
-      <!-- === Camera Model Switcher (Canon A-1 / 現場監督 28WB) === -->
+      <!-- === Top Control Bar: Camera Switcher & ASCII Render Mode Switcher === -->
       <nav
         class="camera-switcher"
         :class="{ 'is-visible': animState === 'idle' || animState === 'done' }"
-        aria-label="Select camera model"
+        aria-label="Camera model and visual mode controls"
       >
-        <div class="camera-switcher__pills" role="tablist">
+        <!-- Camera Model Selector (Canon A-1 / 現場監督 28WB) -->
+        <div class="camera-switcher__pills" role="tablist" aria-label="Camera models">
           <button
             v-for="cam in cameras"
             :key="cam.id"
@@ -25,6 +26,23 @@
           >
             <span class="camera-switcher__name">{{ cam.name }}</span>
             <span class="camera-switcher__spec">{{ cam.spec }}</span>
+          </button>
+        </div>
+
+        <!-- Visual Render Mode Selector (Hybrid Hologram / Pure ASCII / Line-Art) -->
+        <div class="camera-switcher__modes" role="tablist" aria-label="Visual render modes">
+          <button
+            v-for="mode in renderModes"
+            :key="mode.id"
+            type="button"
+            role="tab"
+            class="camera-mode__btn"
+            :class="{ 'is-active': activeRenderMode === mode.id }"
+            :aria-selected="activeRenderMode === mode.id"
+            @click="selectRenderMode(mode.id)"
+          >
+            <span class="camera-mode__icon">{{ mode.icon }}</span>
+            <span>{{ mode.label }}</span>
           </button>
         </div>
       </nav>
@@ -69,7 +87,7 @@
         <img :src="activeCamera.view" alt="" class="camera-img" />
       </div>
 
-      <!-- === Stage 1: Camera front (True 3D Multi-Plane Stereoscopic Parallax) === -->
+      <!-- === Stage 1: Camera front (True 3D Multi-Plane Stereoscopic + ASCII Hologram) === -->
       <div
         class="camera-front-layer"
         :class="{ 'is-hidden': animState !== 'idle' }"
@@ -85,13 +103,17 @@
                 :src="activeCamera.front"
                 :alt="activeCamera.name"
                 class="camera-img camera-img--base"
+                :class="{
+                  'is-dimmed-hybrid': activeRenderMode === 'hybrid',
+                  'is-ghost-ascii': activeRenderMode === 'ascii'
+                }"
                 :style="bodyImgStyle"
                 draggable="false"
               />
 
-              <!-- Depth Plane +1: Stereoscopic Floating Wireframe Layer (Z = +48px) -->
+              <!-- Depth Plane +1A: Stereoscopic Floating Wireframe Layer (Line-Art Mode, Z = +46px) -->
               <img
-                v-if="activeCamera.lines"
+                v-if="activeCamera.lines && activeRenderMode === 'lineart'"
                 :src="activeCamera.lines"
                 alt=""
                 aria-hidden="true"
@@ -99,6 +121,15 @@
                 :style="lensImgStyle"
                 draggable="false"
               />
+
+              <!-- Depth Plane +1B: Interactive 3D ASCII Matrix Canvas (Hybrid & ASCII Modes, Z = +48px) -->
+              <canvas
+                v-show="activeRenderMode !== 'lineart'"
+                ref="asciiCanvasRef"
+                class="camera-ascii-canvas"
+                :style="asciiCanvasStyle"
+                aria-hidden="true"
+              ></canvas>
             </div>
           </div>
         </Transition>
@@ -117,7 +148,9 @@
       <!-- Scroll prompt (shown in idle state) -->
       <div class="scroll-prompt" :class="{ 'is-visible': animState === 'idle' }">
         <span class="scroll-prompt__arrow">&#8595;</span>
-        <p class="scroll-prompt__text">Scroll down to explore · Move cursor for 3D depth</p>
+        <p class="scroll-prompt__text">
+          Scroll down to explore · Move cursor for 3D {{ activeRenderMode === 'lineart' ? 'Parallax' : 'ASCII Scan' }}
+        </p>
       </div>
 
       <!-- Done hint (shown after animation completes) -->
@@ -135,8 +168,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useGalleryStore } from '@/stores/gallery'
+import {
+  loadImageElement,
+  extractAsciiGridFromImage,
+  renderAsciiFrame
+} from '@/services/asciiEngine'
 
 // ─── Camera Models Catalog ────────────────────────────────────────────────────
 const cameras = [
@@ -158,7 +196,14 @@ const cameras = [
   }
 ]
 
+const renderModes = [
+  { id: 'hybrid', label: 'Hybrid ASCII', icon: '◈' },
+  { id: 'ascii', label: 'Pure ASCII', icon: '#' },
+  { id: 'lineart', label: 'Line-Art', icon: '◯' }
+]
+
 const activeCameraId = ref('canon-a1')
+const activeRenderMode = ref('hybrid')
 
 const activeCamera = computed(() =>
   cameras.find((c) => c.id === activeCameraId.value) || cameras[0]
@@ -200,6 +245,80 @@ const selectCamera = (cameraId) => {
     addTriggerListeners()
   }
 }
+
+/**
+ * 切換首頁相機之視覺渲染模式（Hybrid 全息混合 / Pure ASCII 純文字藍圖 / Line-Art 純工程線稿）。
+ * @param {string} modeId - 視覺模式識別碼 ('hybrid' | 'ascii' | 'lineart')。
+ * @returns {void}
+ */
+const selectRenderMode = (modeId) => {
+  activeRenderMode.value = modeId
+  if (animState.value === 'done') {
+    animState.value = 'idle'
+    hasPlayed.value = false
+    wowState.value = -1
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    addTriggerListeners()
+  }
+}
+
+// ─── ASCII Engine State & Cache ───────────────────────────────────────────────
+const asciiCanvasRef = ref(null)
+const asciiGridCache = new Map()
+const CANVAS_LOGICAL_W = 800
+const CANVAS_LOGICAL_H = 600
+
+/**
+ * 初始化或調整 ASCII Canvas 的高 DPI 實體像素緩衝區。
+ * @returns {CanvasRenderingContext2D|null} 2D 渲染上下文。
+ */
+const setupAsciiCanvasContext = () => {
+  const canvas = asciiCanvasRef.value
+  if (!canvas) return null
+  const dpr = Math.min(window.devicePixelRatio || 1, 2)
+  const targetW = Math.round(CANVAS_LOGICAL_W * dpr)
+  const targetH = Math.round(CANVAS_LOGICAL_H * dpr)
+
+  if (canvas.width !== targetW || canvas.height !== targetH) {
+    canvas.width = targetW
+    canvas.height = targetH
+  }
+  const ctx = canvas.getContext('2d')
+  if (ctx) {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  }
+  return ctx
+}
+
+/**
+ * 載入當前相機線稿並預先計算結構化 ASCII 網格模型（具備快取機制）。
+ * @param {Object} cam - 相機設定物件。
+ * @returns {Promise<void>}
+ */
+const ensureAsciiGridLoaded = async (cam) => {
+  if (!cam || asciiGridCache.has(cam.id)) return
+  try {
+    const img = await loadImageElement(cam.front)
+    const grid = extractAsciiGridFromImage(img, {
+      cols: 108,
+      rows: 46,
+      cameraId: cam.id
+    })
+    asciiGridCache.set(cam.id, grid)
+  } catch (err) {
+    console.warn(`[ASCII Engine] Failed to extract grid for ${cam.id}:`, err)
+  }
+}
+
+watch(
+  activeCamera,
+  async (cam) => {
+    await ensureAsciiGridLoaded(cam)
+    await nextTick()
+    setupAsciiCanvasContext()
+  },
+  { immediate: true }
+)
 
 // ─── Viewfinder Layout (dynamic, recalculated on resize) ─────────────────────
 const containerRef = ref(null)
@@ -257,26 +376,45 @@ const viewportStyle = computed(() => ({
   '--inv-scale':        1 / targetScale.value,
 }))
 
-// ─── 3D Physics Damped Mouse Parallax (rAF Lerp Loop) ─────────────────────────
+// ─── 3D Physics Damped Mouse Parallax & Real-Time ASCII Render Loop ───────────
 const targetMouseX = ref(0)
 const targetMouseY = ref(0)
 const smoothMouseX = ref(0)
 const smoothMouseY = ref(0)
+const isCursorHovering = ref(false)
 let rafId = null
 
 /**
- * 執行線性插值 (Lerp) 阻尼運算，使 3D 旋轉角度具備物理慣性與平滑過渡。
+ * 執行線性插值 (Lerp) 阻尼運算與 60fps ASCII 全息畫布重繪。
+ * @param {number} [timestamp=0] - requestAnimationFrame 時間戳記。
  * @returns {void}
  */
-const updateParallaxLoop = () => {
+const updateParallaxLoop = (timestamp = 0) => {
   const damping = 0.1
   smoothMouseX.value += (targetMouseX.value - smoothMouseX.value) * damping
   smoothMouseY.value += (targetMouseY.value - smoothMouseY.value) * damping
+
+  if (animState.value === 'idle' && activeRenderMode.value !== 'lineart') {
+    const grid = asciiGridCache.get(activeCameraId.value)
+    const ctx = setupAsciiCanvasContext()
+    if (ctx && grid) {
+      renderAsciiFrame(ctx, grid, {
+        width: CANVAS_LOGICAL_W,
+        height: CANVAS_LOGICAL_H,
+        mouseX: smoothMouseX.value,
+        mouseY: smoothMouseY.value,
+        isHovering: isCursorHovering.value,
+        mode: activeRenderMode.value,
+        timestamp
+      })
+    }
+  }
+
   rafId = window.requestAnimationFrame(updateParallaxLoop)
 }
 
 /**
- * 處理滑鼠移動事件，將座標正規化至 [-1, 1] 區間。
+ * 處理滑鼠移動事件，將座標正規化至 [-1, 1] 區間並啟動全息掃描光場。
  * @param {MouseEvent} e - 滑鼠事件物件。
  * @returns {void}
  */
@@ -285,6 +423,7 @@ const handleMouseMove = (e) => {
   const { innerWidth, innerHeight } = window
   targetMouseX.value = (e.clientX / innerWidth) * 2 - 1
   targetMouseY.value = (e.clientY / innerHeight) * 2 - 1
+  isCursorHovering.value = true
 }
 
 /**
@@ -294,6 +433,7 @@ const handleMouseMove = (e) => {
 const handleMouseLeave = () => {
   targetMouseX.value = 0
   targetMouseY.value = 0
+  isCursorHovering.value = false
 }
 
 const stage3dStyle = computed(() => {
@@ -328,6 +468,19 @@ const lensImgStyle = computed(() => {
   return {
     transform: `translate3d(${tx}px, ${ty}px, 46px) scale(1.015)`,
     filter: `drop-shadow(${sx}px ${sy}px 10px rgba(255, 137, 6, 0.38))`
+  }
+})
+
+const asciiCanvasStyle = computed(() => {
+  const isPureAscii = activeRenderMode.value === 'ascii'
+  const tx = (smoothMouseX.value * (isPureAscii ? 16 : 24)).toFixed(1)
+  const ty = (smoothMouseY.value * (isPureAscii ? 16 : 24)).toFixed(1)
+  const z = isPureAscii ? 32 : 48
+  const sx = (-smoothMouseX.value * 10).toFixed(1)
+  const sy = (-smoothMouseY.value * 10).toFixed(1)
+  return {
+    transform: `translate3d(${tx}px, ${ty}px, ${z}px)`,
+    filter: `drop-shadow(${sx}px ${sy}px 12px rgba(255, 137, 6, 0.42))`
   }
 })
 
@@ -491,17 +644,24 @@ const removeTriggerListeners = () => {
 
 // ─── Resize ───────────────────────────────────────────────────────────────────
 /**
- * 視窗尺寸變更時更新觀景窗佈局。
+ * 視窗尺寸變更時更新觀景窗佈局與高 DPI 畫布尺寸。
  * @returns {void}
  */
 const handleResize = () => {
   updateLayout()
+  setupAsciiCanvasContext()
 }
 
 // ─── Lifecycle ────────────────────────────────────────────────────────────────
-onMounted(() => {
+onMounted(async () => {
   window.scrollTo(0, 0)
   updateLayout()
+
+  // 預先載入兩台相機之 ASCII 網格模型
+  for (const cam of cameras) {
+    ensureAsciiGridLoaded(cam)
+  }
+
   rafId = window.requestAnimationFrame(updateParallaxLoop)
 
   if (!hasPlayed.value) {
@@ -546,13 +706,18 @@ onUnmounted(() => {
   background-color: var(--color-bg, #0f0e17);
 }
 
-/* ─── Camera Switcher Bar ──────────────────────────────────────────────────── */
+/* ─── Camera Switcher & Render Mode Bar ────────────────────────────────────── */
 .camera-switcher {
   position: absolute;
-  top: 28px;
+  top: 24px;
   left: 50%;
   transform: translateX(-50%) translateY(-10px);
   z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
   opacity: 0;
   pointer-events: none;
   transition:
@@ -566,13 +731,14 @@ onUnmounted(() => {
   transform: translateX(-50%) translateY(0);
 }
 
-.camera-switcher__pills {
+.camera-switcher__pills,
+.camera-switcher__modes {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px;
+  gap: 6px;
+  padding: 5px;
   border-radius: 999px;
-  background: rgba(22, 21, 33, 0.78);
+  background: rgba(22, 21, 33, 0.82);
   border: 1px solid rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -583,7 +749,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 18px;
+  padding: 7px 16px;
   border-radius: 999px;
   border: 1px solid transparent;
   background: transparent;
@@ -599,7 +765,8 @@ onUnmounted(() => {
     box-shadow 0.25s ease;
 }
 
-.camera-switcher__btn:hover {
+.camera-switcher__btn:hover,
+.camera-mode__btn:hover {
   color: var(--color-text, #fffffe);
 }
 
@@ -620,6 +787,36 @@ onUnmounted(() => {
   opacity: 0.65;
   padding-left: 8px;
   border-left: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.camera-mode__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text-secondary, #a7a9be);
+  font-family: 'SFMono-Regular', 'Consolas', var(--font-sans, 'Inter'), monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition:
+    color 0.25s ease,
+    background-color 0.25s ease,
+    border-color 0.25s ease;
+}
+
+.camera-mode__btn.is-active {
+  background: rgba(255, 255, 254, 0.1);
+  border-color: rgba(255, 255, 254, 0.35);
+  color: var(--color-accent, #ff8906);
+}
+
+.camera-mode__icon {
+  font-size: 0.8rem;
 }
 
 /* ─── Shared layer base styles ─────────────────────────────────────────────── */
@@ -725,7 +922,7 @@ onUnmounted(() => {
   transition: transform 1.2s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
-/* ─── Camera images (Seamless #0f0e17 integration) ─────────────────────────── */
+/* ─── Camera images & ASCII Canvas (Seamless #0f0e17 integration) ──────────── */
 .camera-img {
   position: absolute;
   width: 100%;
@@ -734,18 +931,36 @@ onUnmounted(() => {
   object-fit: contain;
   background-color: transparent !important;
   user-select: none;
+  transition: opacity 0.35s ease;
 }
 
 .camera-img--base {
-  /* 邊緣柔和漸層遮罩，確保在大幅度 3D 傾角下與 #0f0e17 背景完全無縫融合 */
   -webkit-mask-image: radial-gradient(ellipse 76% 74% at 50% 50%, #000 72%, transparent 100%);
   mask-image: radial-gradient(ellipse 76% 74% at 50% 50%, #000 72%, transparent 100%);
+}
+
+.camera-img--base.is-dimmed-hybrid {
+  opacity: 0.72;
+}
+
+.camera-img--base.is-ghost-ascii {
+  opacity: 0.12;
 }
 
 .camera-img--lines {
   mix-blend-mode: screen;
   opacity: 0.92;
   pointer-events: none;
+}
+
+.camera-ascii-canvas {
+  position: absolute;
+  width: 100%;
+  max-width: 800px;
+  aspect-ratio: 4 / 3;
+  height: auto;
+  pointer-events: none;
+  user-select: none;
 }
 
 /* ─── Camera Swap Transition ───────────────────────────────────────────────── */
@@ -969,19 +1184,21 @@ onUnmounted(() => {
   60%  { transform: translateY(-3px); }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .camera-switcher {
-    top: 16px;
-    width: 92%;
-  }
-
-  .camera-switcher__pills {
-    width: 100%;
-    justify-content: center;
+    top: 14px;
+    width: 95%;
+    gap: 8px;
   }
 
   .camera-switcher__spec {
     display: none;
+  }
+
+  .camera-switcher__btn,
+  .camera-mode__btn {
+    padding: 6px 12px;
+    font-size: 0.72rem;
   }
 }
 </style>
