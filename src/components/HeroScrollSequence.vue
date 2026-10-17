@@ -6,6 +6,29 @@
       @mousemove="handleMouseMove"
       @mouseleave="handleMouseLeave"
     >
+      <!-- === Camera Model Switcher (Canon A-1 / 現場監督 28WB) === -->
+      <nav
+        class="camera-switcher"
+        :class="{ 'is-visible': animState === 'idle' || animState === 'done' }"
+        aria-label="Select camera model"
+      >
+        <div class="camera-switcher__pills" role="tablist">
+          <button
+            v-for="cam in cameras"
+            :key="cam.id"
+            type="button"
+            role="tab"
+            class="camera-switcher__btn"
+            :class="{ 'is-active': activeCameraId === cam.id }"
+            :aria-selected="activeCameraId === cam.id"
+            @click="selectCamera(cam.id)"
+          >
+            <span class="camera-switcher__name">{{ cam.name }}</span>
+            <span class="camera-switcher__spec">{{ cam.spec }}</span>
+          </button>
+        </div>
+      </nav>
+
       <!-- === Stage 3: Viewfinder content (wow photos + flash) === -->
       <div
         class="viewfinder-content"
@@ -43,37 +66,58 @@
           'is-hidden': animState === 'slideshow' || animState === 'done'
         }"
       >
-        <img :src="cameraAssets.view" alt="" class="camera-img" />
+        <img :src="activeCamera.view" alt="" class="camera-img" />
       </div>
 
-      <!-- === Stage 1: Camera front (3D parallax) === -->
+      <!-- === Stage 1: Camera front (True 3D Multi-Plane Stereoscopic Parallax) === -->
       <div
         class="camera-front-layer"
         :class="{ 'is-hidden': animState !== 'idle' }"
-        :style="{ perspective: '1000px' }"
       >
-        <div class="idle-float">
-          <img
-            :src="cameraAssets.front"
-            alt=""
-            class="camera-img"
-            :style="bodyImgStyle"
-          />
-        </div>
-        <div class="idle-float" v-if="cameraAssets.lens">
-          <img
-            :src="cameraAssets.lens"
-            alt=""
-            class="camera-img lens-img"
-            :style="lensImgStyle"
-          />
-        </div>
+        <Transition name="camera-swap" mode="out-in">
+          <div :key="activeCamera.id" class="idle-float">
+            <div class="camera-3d-stage" :style="stage3dStyle">
+              <!-- Depth Plane -1: Ambient Rim Glow (Z = -60px) -->
+              <div class="camera-3d-glow" :style="glowLayerStyle" aria-hidden="true"></div>
+
+              <!-- Depth Plane 0: Primary Camera Chassis Line-Art (#0f0e17 Base, Z = 0px) -->
+              <img
+                :src="activeCamera.front"
+                :alt="activeCamera.name"
+                class="camera-img camera-img--base"
+                :style="bodyImgStyle"
+                draggable="false"
+              />
+
+              <!-- Depth Plane +1: Stereoscopic Floating Wireframe Layer (Z = +48px) -->
+              <img
+                v-if="activeCamera.lines"
+                :src="activeCamera.lines"
+                alt=""
+                aria-hidden="true"
+                class="camera-img camera-img--lines"
+                :style="lensImgStyle"
+                draggable="false"
+              />
+            </div>
+          </div>
+        </Transition>
       </div>
+
+      <!-- Skip Intro Button (visible during zooming/slideshow) -->
+      <button
+        v-if="animState === 'zooming' || animState === 'slideshow'"
+        type="button"
+        class="skip-intro-btn"
+        @click="skipAnimation"
+      >
+        Skip Intro &#8594;
+      </button>
 
       <!-- Scroll prompt (shown in idle state) -->
       <div class="scroll-prompt" :class="{ 'is-visible': animState === 'idle' }">
         <span class="scroll-prompt__arrow">&#8595;</span>
-        <p class="scroll-prompt__text">Scroll down to explore</p>
+        <p class="scroll-prompt__text">Scroll down to explore · Move cursor for 3D depth</p>
       </div>
 
       <!-- Done hint (shown after animation completes) -->
@@ -94,32 +138,68 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useGalleryStore } from '@/stores/gallery'
 
-// ─── Assets ───────────────────────────────────────────────────────────────────
-const cameraAssets = {
-  front: '/images/cameras/canon-a1.jpg',
-  lens: '',
-  view: '/images/cameras/canon-a1_view.jpg'
-}
+// ─── Camera Models Catalog ────────────────────────────────────────────────────
+const cameras = [
+  {
+    id: 'canon-a1',
+    name: 'Canon A-1',
+    spec: 'FD 50mm f/1.4',
+    front: '/images/cameras/canon-a1.webp',
+    lines: '/images/cameras/canon-a1_lines.webp',
+    view: '/images/cameras/canon-a1_view.webp'
+  },
+  {
+    id: 'genba-kantoku',
+    name: '現場監督 28WB',
+    spec: 'Konica 28mm Weatherproof',
+    front: '/images/cameras/genba-kantoku.webp',
+    lines: '/images/cameras/genba-kantoku_lines.webp',
+    view: '/images/cameras/genba-kantoku_view.webp'
+  }
+]
+
+const activeCameraId = ref('canon-a1')
+
+const activeCamera = computed(() =>
+  cameras.find((c) => c.id === activeCameraId.value) || cameras[0]
+)
 
 const galleryStore = useGalleryStore()
 
 const wowAssets = computed(() => {
-  const heroItems = galleryStore.photos.filter(p => p.hero === true)
+  const heroItems = galleryStore.photos.filter((p) => p.hero === true)
   heroItems.sort((a, b) => (a.heroOrder || 99) - (b.heroOrder || 99))
-  
+
   if (heroItems.length < 3) {
-    const moreItems = galleryStore.photos.filter(p => !p.hero).slice(0, 3 - heroItems.length)
+    const moreItems = galleryStore.photos.filter((p) => !p.hero).slice(0, 3 - heroItems.length)
     heroItems.push(...moreItems)
   }
-  
+
   const items = heroItems.slice(0, 3)
-  return items.length > 0 ? items.map(p => p.src) : []
+  return items.length > 0 ? items.map((p) => p.src) : []
 })
 
 // ─── State Machine ────────────────────────────────────────────────────────────
 // States: 'idle' | 'zooming' | 'slideshow' | 'done'
+const SESSION_KEY = 'gibsonfilm_hero_played'
 const animState = ref('idle')
 const hasPlayed = ref(false)
+
+/**
+ * 切換展示之相機型號。若目前已播放完動畫，切換相機時會回到 3D 相機展示狀態以供互動。
+ * @param {string} cameraId - 相機型號 ID ('canon-a1' | 'genba-kantoku')。
+ * @returns {void}
+ */
+const selectCamera = (cameraId) => {
+  activeCameraId.value = cameraId
+  if (animState.value === 'done') {
+    animState.value = 'idle'
+    hasPlayed.value = false
+    wowState.value = -1
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    addTriggerListeners()
+  }
+}
 
 // ─── Viewfinder Layout (dynamic, recalculated on resize) ─────────────────────
 const containerRef = ref(null)
@@ -129,6 +209,10 @@ const viewfinderW = ref(0)
 const viewfinderH = ref(0)
 const targetScale = ref(10)
 
+/**
+ * 依據視窗尺寸重新計算觀景窗遮罩中心座標與目標縮放倍率。
+ * @returns {void}
+ */
 const updateLayout = () => {
   const ww = window.innerWidth
   const wh = window.innerHeight
@@ -173,43 +257,98 @@ const viewportStyle = computed(() => ({
   '--inv-scale':        1 / targetScale.value,
 }))
 
-// ─── Mouse Parallax (only active in idle state) ───────────────────────────────
-const mouseX = ref(0)
-const mouseY = ref(0)
+// ─── 3D Physics Damped Mouse Parallax (rAF Lerp Loop) ─────────────────────────
+const targetMouseX = ref(0)
+const targetMouseY = ref(0)
+const smoothMouseX = ref(0)
+const smoothMouseY = ref(0)
+let rafId = null
 
+/**
+ * 執行線性插值 (Lerp) 阻尼運算，使 3D 旋轉角度具備物理慣性與平滑過渡。
+ * @returns {void}
+ */
+const updateParallaxLoop = () => {
+  const damping = 0.1
+  smoothMouseX.value += (targetMouseX.value - smoothMouseX.value) * damping
+  smoothMouseY.value += (targetMouseY.value - smoothMouseY.value) * damping
+  rafId = window.requestAnimationFrame(updateParallaxLoop)
+}
+
+/**
+ * 處理滑鼠移動事件，將座標正規化至 [-1, 1] 區間。
+ * @param {MouseEvent} e - 滑鼠事件物件。
+ * @returns {void}
+ */
 const handleMouseMove = (e) => {
   if (animState.value !== 'idle') return
   const { innerWidth, innerHeight } = window
-  mouseX.value = (e.clientX / innerWidth) * 2 - 1
-  mouseY.value = (e.clientY / innerHeight) * 2 - 1
+  targetMouseX.value = (e.clientX / innerWidth) * 2 - 1
+  targetMouseY.value = (e.clientY / innerHeight) * 2 - 1
 }
 
+/**
+ * 當滑鼠離開視窗時，將 3D 視差目標角度平滑歸零。
+ * @returns {void}
+ */
 const handleMouseLeave = () => {
-  mouseX.value = 0
-  mouseY.value = 0
+  targetMouseX.value = 0
+  targetMouseY.value = 0
 }
 
-const bodyImgStyle = computed(() => ({
-  transform: `rotateX(${-mouseY.value * 12}deg) rotateY(${mouseX.value * 12}deg) translate3d(${mouseX.value * 8}px, ${mouseY.value * 8}px, 0)`,
-  transition: 'transform 0.15s ease-out'
-}))
+const stage3dStyle = computed(() => {
+  const rx = (-smoothMouseY.value * 16).toFixed(2)
+  const ry = (smoothMouseX.value * 20).toFixed(2)
+  return {
+    transform: `perspective(950px) rotateX(${rx}deg) rotateY(${ry}deg)`
+  }
+})
 
-const lensImgStyle = computed(() => ({
-  transform: `rotateX(${-mouseY.value * 12}deg) rotateY(${mouseX.value * 12}deg) translate3d(${mouseX.value * 15}px, ${mouseY.value * 15}px, 60px)`,
-  transition: 'transform 0.15s ease-out'
-}))
+const glowLayerStyle = computed(() => {
+  const tx = (-smoothMouseX.value * 30).toFixed(1)
+  const ty = (-smoothMouseY.value * 30).toFixed(1)
+  return {
+    transform: `translate3d(${tx}px, ${ty}px, -60px)`
+  }
+})
+
+const bodyImgStyle = computed(() => {
+  const tx = (smoothMouseX.value * 8).toFixed(1)
+  const ty = (smoothMouseY.value * 8).toFixed(1)
+  return {
+    transform: `translate3d(${tx}px, ${ty}px, 0px)`
+  }
+})
+
+const lensImgStyle = computed(() => {
+  const tx = (smoothMouseX.value * 22).toFixed(1)
+  const ty = (smoothMouseY.value * 22).toFixed(1)
+  const sx = (-smoothMouseX.value * 12).toFixed(1)
+  const sy = (-smoothMouseY.value * 12).toFixed(1)
+  return {
+    transform: `translate3d(${tx}px, ${ty}px, 46px) scale(1.015)`,
+    filter: `drop-shadow(${sx}px ${sy}px 10px rgba(255, 137, 6, 0.38))`
+  }
+})
 
 // ─── Scroll Lock ──────────────────────────────────────────────────────────────
 let lockedScrollY = 0
 
+/**
+ * 鎖定頁面滾動以進行觀景窗縮放與幻燈片動畫。
+ * @returns {void}
+ */
 const lockScroll = () => {
   lockedScrollY = window.scrollY
-  // position: fixed + top trick: most reliable across iOS Safari, Android, desktop
   document.body.style.position = 'fixed'
   document.body.style.top = `-${lockedScrollY}px`
   document.body.style.width = '100%'
 }
 
+/**
+ * 解除頁面滾動鎖定並還原捲動位置。
+ * @returns {void}
+ */
 const unlockScroll = () => {
   document.body.style.position = ''
   document.body.style.top = ''
@@ -221,8 +360,12 @@ const unlockScroll = () => {
 const wowState = ref(-1)
 let slideshowTimeout = null
 
+/**
+ * 依序播放觀景窗內的三張精選照片與快門閃光特效。
+ * @returns {Promise<void>}
+ */
 const runSlideshow = async () => {
-  const sleep = (ms) => new Promise(resolve => {
+  const sleep = (ms) => new Promise((resolve) => {
     slideshowTimeout = setTimeout(resolve, ms)
   })
 
@@ -230,9 +373,9 @@ const runSlideshow = async () => {
 
   for (let i = 0; i < wowAssets.value.length; i++) {
     wowState.value = i * 2           // flash frame
-    await sleep(100)                 // exactly 0.1s flash
+    await sleep(100)                 // 0.1s flash
 
-    wowState.value = i * 2 + 1      // photo visible
+    wowState.value = i * 2 + 1       // photo visible
     await sleep(1300)
   }
 }
@@ -240,36 +383,63 @@ const runSlideshow = async () => {
 // ─── Animation State Machine ──────────────────────────────────────────────────
 let animTimeout = null
 
+/**
+ * 啟動相機觀景窗縮放與快門幻燈片狀態機。
+ * @returns {void}
+ */
 const startAnimation = () => {
-  // Guard: only play once and only from idle state
   if (hasPlayed.value || animState.value !== 'idle') return
   hasPlayed.value = true
+  try {
+    sessionStorage.setItem(SESSION_KEY, '1')
+  } catch {
+    // Ignore storage quota errors
+  }
 
-  // Remove trigger listeners immediately so they don't fire again
   removeTriggerListeners()
 
-  // Reset mouse parallax
-  mouseX.value = 0
-  mouseY.value = 0
+  targetMouseX.value = 0
+  targetMouseY.value = 0
 
-  // Lock scroll and begin zoom
   lockScroll()
   animState.value = 'zooming'
 
-  // After CSS transition completes (1.8s), start slideshow
   animTimeout = setTimeout(async () => {
     animState.value = 'slideshow'
     await runSlideshow()
 
-    // Slideshow done → release to user
     animState.value = 'done'
     unlockScroll()
   }, 1800)
 }
 
+/**
+ * 立即略過開場動畫並釋放頁面捲動鎖定。
+ * @returns {void}
+ */
+const skipAnimation = () => {
+  if (animTimeout) clearTimeout(animTimeout)
+  if (slideshowTimeout) clearTimeout(slideshowTimeout)
+  removeTriggerListeners()
+  hasPlayed.value = true
+  try {
+    sessionStorage.setItem(SESSION_KEY, '1')
+  } catch {
+    // Ignore storage errors
+  }
+  wowState.value = Math.max(0, wowAssets.value.length * 2 - 1)
+  animState.value = 'done'
+  unlockScroll()
+}
+
 // ─── Trigger Detection (wheel + touch) ───────────────────────────────────────
 let touchStartY = 0
 
+/**
+ * 偵測滑鼠滾輪向下滾動以觸發開場動畫。
+ * @param {WheelEvent} e - 滾輪事件。
+ * @returns {void}
+ */
 const onWheelTrigger = (e) => {
   if (e.deltaY > 5) {
     e.preventDefault()
@@ -277,10 +447,20 @@ const onWheelTrigger = (e) => {
   }
 }
 
+/**
+ * 記錄觸控起始 Y 座標。
+ * @param {TouchEvent} e - 觸控事件。
+ * @returns {void}
+ */
 const onTouchStart = (e) => {
   touchStartY = e.touches[0].clientY
 }
 
+/**
+ * 偵測行動裝置向上滑動手勢以觸發開場動畫。
+ * @param {TouchEvent} e - 觸控移動事件。
+ * @returns {void}
+ */
 const onTouchMoveTrigger = (e) => {
   const deltaY = touchStartY - e.touches[0].clientY
   if (deltaY > 10) {
@@ -289,12 +469,20 @@ const onTouchMoveTrigger = (e) => {
   }
 }
 
+/**
+ * 註冊滾輪與觸控觸發監聽器。
+ * @returns {void}
+ */
 const addTriggerListeners = () => {
   window.addEventListener('wheel', onWheelTrigger, { passive: false })
   window.addEventListener('touchstart', onTouchStart, { passive: true })
   window.addEventListener('touchmove', onTouchMoveTrigger, { passive: false })
 }
 
+/**
+ * 移除滾輪與觸控觸發監聽器。
+ * @returns {void}
+ */
 const removeTriggerListeners = () => {
   window.removeEventListener('wheel', onWheelTrigger)
   window.removeEventListener('touchstart', onTouchStart)
@@ -302,18 +490,20 @@ const removeTriggerListeners = () => {
 }
 
 // ─── Resize ───────────────────────────────────────────────────────────────────
+/**
+ * 視窗尺寸變更時更新觀景窗佈局。
+ * @returns {void}
+ */
 const handleResize = () => {
   updateLayout()
 }
 
 // ─── Lifecycle ────────────────────────────────────────────────────────────────
 onMounted(() => {
-  // Reset to top to ensure camera is visible on mount
   window.scrollTo(0, 0)
-
   updateLayout()
+  rafId = window.requestAnimationFrame(updateParallaxLoop)
 
-  // Add trigger listeners only if animation hasn't played yet
   if (!hasPlayed.value) {
     addTriggerListeners()
   }
@@ -325,11 +515,10 @@ onUnmounted(() => {
   removeTriggerListeners()
   window.removeEventListener('resize', handleResize)
 
-  // Clean up any pending timeouts
+  if (rafId) window.cancelAnimationFrame(rafId)
   if (animTimeout) clearTimeout(animTimeout)
   if (slideshowTimeout) clearTimeout(slideshowTimeout)
 
-  // Ensure scroll is unlocked if component is destroyed mid-animation
   if (animState.value === 'zooming' || animState.value === 'slideshow') {
     unlockScroll()
   }
@@ -354,6 +543,83 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   touch-action: pan-y;
+  background-color: var(--color-bg, #0f0e17);
+}
+
+/* ─── Camera Switcher Bar ──────────────────────────────────────────────────── */
+.camera-switcher {
+  position: absolute;
+  top: 28px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-10px);
+  z-index: 20;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.4s ease,
+    transform 0.4s ease;
+}
+
+.camera-switcher.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+}
+
+.camera-switcher__pills {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 999px;
+  background: rgba(22, 21, 33, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+}
+
+.camera-switcher__btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text-secondary, #a7a9be);
+  font-family: var(--font-sans, 'Inter'), sans-serif;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    color 0.25s ease,
+    background-color 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+.camera-switcher__btn:hover {
+  color: var(--color-text, #fffffe);
+}
+
+.camera-switcher__btn.is-active {
+  background: rgba(255, 137, 6, 0.14);
+  border-color: var(--color-accent, #ff8906);
+  color: var(--color-text, #fffffe);
+  box-shadow: 0 0 20px rgba(255, 137, 6, 0.22);
+}
+
+.camera-switcher__name {
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.camera-switcher__spec {
+  font-size: 0.7rem;
+  opacity: 0.65;
+  padding-left: 8px;
+  border-left: 1px solid rgba(255, 255, 255, 0.18);
 }
 
 /* ─── Shared layer base styles ─────────────────────────────────────────────── */
@@ -374,10 +640,39 @@ onUnmounted(() => {
   pointer-events: none;
   opacity: 1;
   transition: opacity 0.4s ease;
+  transform-style: preserve-3d;
 }
 
 .camera-front-layer.is-hidden {
   opacity: 0;
+  pointer-events: none;
+}
+
+/* ─── 3D Stage & Stereoscopic Planes ───────────────────────────────────────── */
+.camera-3d-stage {
+  position: relative;
+  width: 100%;
+  max-width: 820px;
+  aspect-ratio: 4 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.camera-3d-glow {
+  position: absolute;
+  width: 68%;
+  height: 62%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 137, 6, 0.16) 0%,
+    rgba(229, 49, 112, 0.06) 45%,
+    transparent 72%
+  );
+  filter: blur(36px);
   pointer-events: none;
 }
 
@@ -386,10 +681,8 @@ onUnmounted(() => {
   z-index: 2;
   pointer-events: none;
   opacity: 0;
-  /* Initial: scale 1, at viewfinder origin */
   transform: scale(1);
   transform-origin: var(--viewfinder-x) var(--viewfinder-y);
-  /* CSS transition handles the zoom — Compositor Thread, not JS Main Thread */
   transition:
     transform 1.8s cubic-bezier(0.16, 1, 0.3, 1),
     opacity 0.3s ease;
@@ -405,19 +698,18 @@ onUnmounted(() => {
 
 .camera-mask-layer.is-hidden {
   opacity: 0;
-  transition: opacity 0s; /* Instant disappear at slideshow start to not block the flash */
+  transition: opacity 0s;
 }
 
 /* ─── Viewfinder Content (Stage 3) ────────────────────────────────────────── */
 .viewfinder-content {
   z-index: 1;
   opacity: 0;
-  /* Start at inverse scale so the "hole" in the camera mask is exactly filled */
   transform: scale(var(--inv-scale));
   transform-origin: var(--viewfinder-x) var(--viewfinder-y);
   transition:
     transform 1.8s cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 0.6s ease 0.4s; /* fade in slightly delayed */
+    opacity 0.6s ease 0.4s;
 }
 
 .viewfinder-content.is-visible {
@@ -429,19 +721,49 @@ onUnmounted(() => {
 }
 
 .viewfinder-content.is-done {
-  /* Translate up and scale down to create a gallery frame effect and make room for text below */
   transform: translate3d(0, -7vh, 0) scale(0.78);
   transition: transform 1.2s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
-/* ─── Camera images ────────────────────────────────────────────────────────── */
+/* ─── Camera images (Seamless #0f0e17 integration) ─────────────────────────── */
 .camera-img {
   position: absolute;
   width: 100%;
   max-width: 800px;
   height: auto;
   object-fit: contain;
-  transform: translateZ(0);
+  background-color: transparent !important;
+  user-select: none;
+}
+
+.camera-img--base {
+  /* 邊緣柔和漸層遮罩，確保在大幅度 3D 傾角下與 #0f0e17 背景完全無縫融合 */
+  -webkit-mask-image: radial-gradient(ellipse 76% 74% at 50% 50%, #000 72%, transparent 100%);
+  mask-image: radial-gradient(ellipse 76% 74% at 50% 50%, #000 72%, transparent 100%);
+}
+
+.camera-img--lines {
+  mix-blend-mode: screen;
+  opacity: 0.92;
+  pointer-events: none;
+}
+
+/* ─── Camera Swap Transition ───────────────────────────────────────────────── */
+.camera-swap-enter-active,
+.camera-swap-leave-active {
+  transition:
+    opacity 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.camera-swap-enter-from {
+  opacity: 0;
+  transform: scale(0.94) translateY(12px);
+}
+
+.camera-swap-leave-to {
+  opacity: 0;
+  transform: scale(1.04) translateY(-12px);
 }
 
 /* ─── Idle float animation ─────────────────────────────────────────────────── */
@@ -451,12 +773,41 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+  transform-style: preserve-3d;
   animation: float-anim 6s ease-in-out infinite;
 }
 
 @keyframes float-anim {
   0%, 100% { transform: translateY(-6px); }
   50%       { transform: translateY(6px); }
+}
+
+/* ─── Skip Intro Button ────────────────────────────────────────────────────── */
+.skip-intro-btn {
+  position: absolute;
+  bottom: 32px;
+  right: 36px;
+  z-index: 25;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(15, 14, 23, 0.75);
+  color: var(--color-text-secondary, #a7a9be);
+  font-family: var(--font-sans, 'Inter'), sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.skip-intro-btn:hover {
+  color: var(--color-text, #fffffe);
+  border-color: var(--color-accent, #ff8906);
 }
 
 /* ─── Viewfinder Inner (photos + flash) ────────────────────────────────────── */
@@ -477,9 +828,8 @@ onUnmounted(() => {
 .view-black-bg {
   position: absolute;
   inset: 0;
-  background-color: #000;
+  background-color: #0f0e17;
   z-index: 0;
-  /* No transition so it snaps instantly */
 }
 
 .wow-img {
@@ -491,7 +841,6 @@ onUnmounted(() => {
   opacity: 0;
   z-index: 1;
   contain: paint;
-  /* No transition so it cuts in instantly behind the flash */
 }
 
 .wow-img.is-visible {
@@ -504,7 +853,6 @@ onUnmounted(() => {
   background-color: #fff;
   opacity: 0;
   z-index: 2;
-  /* No transition so it pops on/off instantly */
 }
 
 .white-flash.is-flashing {
@@ -514,7 +862,7 @@ onUnmounted(() => {
 /* ─── Scroll Prompt (idle state) ───────────────────────────────────────────── */
 .scroll-prompt {
   position: absolute;
-  bottom: 8%;
+  bottom: 7%;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -535,17 +883,18 @@ onUnmounted(() => {
 
 .scroll-prompt__arrow {
   font-size: 1.5rem;
+  color: var(--color-accent, #ff8906);
   animation: bounce 2s ease-in-out infinite;
 }
 
 .scroll-prompt__text {
   font-family: var(--font-sans, 'Inter'), sans-serif;
-  font-size: 0.8125rem;
+  font-size: 0.78rem;
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   margin: 0;
-  opacity: 0.7;
+  opacity: 0.75;
 }
 
 /* ─── Done Hint (after animation) ─────────────────────────────────────────── */
@@ -561,7 +910,7 @@ onUnmounted(() => {
   z-index: 10;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 1.2s ease 0.4s; /* Wait for the photo to shrink and slide up */
+  transition: opacity 1.2s ease 0.4s;
   text-align: center;
   padding: 20px;
 }
@@ -577,7 +926,7 @@ onUnmounted(() => {
   letter-spacing: -0.02em;
   color: var(--color-headline, #fffffe);
   margin: 0 0 12px;
-  text-shadow: 0 4px 24px rgba(0,0,0,0.6);
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
 }
 
 .done-hint__subtitle {
@@ -587,7 +936,7 @@ onUnmounted(() => {
   text-transform: uppercase;
   color: var(--color-paragraph, #a7a9be);
   margin: 0 0 48px;
-  text-shadow: 0 2px 12px rgba(0,0,0,0.6);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
 }
 
 .done-hint__scroll-cue {
@@ -618,5 +967,21 @@ onUnmounted(() => {
   0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
   40%  { transform: translateY(-7px); }
   60%  { transform: translateY(-3px); }
+}
+
+@media (max-width: 640px) {
+  .camera-switcher {
+    top: 16px;
+    width: 92%;
+  }
+
+  .camera-switcher__pills {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .camera-switcher__spec {
+    display: none;
+  }
 }
 </style>
