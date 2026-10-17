@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
-import { resolve } from 'path'
+import { fileURLToPath, URL } from 'node:url'
 
 export default defineConfig(async () => {
   const plugins = [vue()]
@@ -15,15 +15,13 @@ export default defineConfig(async () => {
     } catch (e) {
       console.warn('Could not load @cloudflare/vite-plugin:', e)
     }
-  } else {
-    console.warn(`Node version ${process.version} is < 22. Skipping @cloudflare/vite-plugin.`)
   }
 
   return {
     plugins,
     resolve: {
       alias: {
-        '@': resolve(__dirname, 'src')
+        '@': fileURLToPath(new URL('./src', import.meta.url))
       }
     }
   }
